@@ -194,6 +194,14 @@
         ? Math.round(event.gamma)
         : "N/A";
 
+    const bolinha = document.getElementById("teste");
+
+if (event.gamma !== null) {
+  const posicao = 50 + (event.gamma / 45) * 30;
+
+  bolinha.style.left = posicao + "%";
+}
+
     message.innerHTML =
       "SENSOR ATIVO<br><br>" +
       "ALPHA: " + alpha + "°<br>" +
