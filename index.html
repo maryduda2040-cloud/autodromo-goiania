@@ -57,6 +57,17 @@
       text-align: center;
       text-shadow: 0 2px 5px #000;
     }
+
+    #teste {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 80px;
+  color: white;
+  z-index: 6;
+  text-shadow: 0 2px 5px #000;
+}
   </style>
 </head>
 
@@ -68,9 +79,9 @@
 
   <video id="camera" autoplay playsinline></video>
 
-  <div id="message">
-    VIRE O CELULAR
-  </div>
+  <div id="teste">
+  ●
+</div>
 
   <script>
   const start = document.getElementById("start");
@@ -167,27 +178,28 @@
 
   function mostrarOrientacao(event) {
 
-    const alpha =
-      event.alpha !== null
-        ? Math.round(event.alpha)
-        : "N/A";
+  const gamma = event.gamma || 0;
 
-    const beta =
-      event.beta !== null
-        ? Math.round(event.beta)
-        : "N/A";
+  const limite = 45;
 
-    const gamma =
-      event.gamma !== null
-        ? Math.round(event.gamma)
-        : "N/A";
+  const movimento = Math.max(
+    -limite,
+    Math.min(limite, gamma)
+  );
 
-    message.innerHTML =
-      "SENSOR ATIVO<br><br>" +
-      "ALPHA: " + alpha + "°<br>" +
-      "BETA: " + beta + "°<br>" +
-      "GAMMA: " + gamma + "°";
-  }
+  const porcentagem = movimento / limite;
+
+  const deslocamento = porcentagem * 300;
+
+  const teste = document.getElementById("teste");
+
+  teste.style.left =
+    `calc(50% + ${deslocamento}px)`;
+
+  message.innerHTML =
+    "VIRE O CELULAR<br>" +
+    "Gamma: " + Math.round(gamma) + "°";
+}
 </script>
 
 </body>
