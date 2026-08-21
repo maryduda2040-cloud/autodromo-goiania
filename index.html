@@ -63,11 +63,13 @@
       position: fixed;
 
       left: 50%;
+
       bottom: 0;
 
       transform: translateX(-50%);
 
       width: 100%;
+
       height: auto;
 
       z-index: 5;
@@ -204,6 +206,14 @@
     const message =
       document.getElementById("message");
 
+    const pista =
+      document.getElementById("pista");
+
+
+    /* POSIÇÃO ATUAL DA PISTA */
+
+    let posicaoPista = 0;
+
 
     /* BOTÃO INICIAR */
 
@@ -301,6 +311,11 @@
       try {
 
 
+        /*
+          ALGUNS NAVEGADORES
+          PRECISAM DE PERMISSÃO
+        */
+
         if (
 
           typeof DeviceOrientationEvent !==
@@ -349,7 +364,6 @@
         message.innerHTML =
           "VIRE O CELULAR";
 
-
       }
 
 
@@ -371,16 +385,51 @@
 
     function mostrarOrientacao(event) {
 
+
       /*
-        Por enquanto não vamos
-        movimentar a pista.
-        Estamos apenas recebendo
-        o sensor.
+        GAMMA REPRESENTA
+        A INCLINAÇÃO
+        ESQUERDA / DIREITA
       */
 
       const gamma =
         event.gamma || 0;
 
+
+      /*
+        CONVERTE O MOVIMENTO
+        DO CELULAR EM MOVIMENTO
+        DA PISTA
+      */
+
+      const deslocamento =
+        gamma * 2;
+
+
+      posicaoPista =
+        Math.max(
+          -150,
+          Math.min(
+            150,
+            deslocamento
+          )
+        );
+
+
+      /*
+        APLICA O MOVIMENTO
+
+        Mantemos exatamente o
+        tamanho original da pista.
+      */
+
+      pista.style.transform =
+        `translateX(calc(-50% + ${posicaoPista}px))`;
+
+
+      /*
+        MOSTRA GAMMA
+      */
 
       message.innerHTML =
         "VIRE O CELULAR<br><br>" +
@@ -389,7 +438,6 @@
         "°";
 
     }
-
 
   </script>
 
