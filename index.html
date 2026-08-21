@@ -19,7 +19,6 @@
       box-sizing: border-box;
     }
 
-
     html,
     body {
 
@@ -105,7 +104,7 @@
 
       color: white;
 
-      font-size: 20px;
+      font-size: 18px;
 
       font-weight: bold;
 
@@ -118,7 +117,7 @@
     }
 
 
-    /* BOLINHA */
+    /* BOLINHA DE TESTE */
 
     #teste {
 
@@ -142,55 +141,6 @@
 
       box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.5);
-
-    }
-
-
-    /*
-      MENSAGEM DE ORIENTAÇÃO
-    */
-
-    #orientationMessage {
-
-      position: fixed;
-
-      inset: 0;
-
-      display: none;
-
-      align-items: center;
-
-      justify-content: center;
-
-      flex-direction: column;
-
-      background: #111;
-
-      color: white;
-
-      z-index: 30;
-
-      text-align: center;
-
-      padding: 30px;
-
-    }
-
-
-    #orientationMessage h1 {
-
-      margin: 0 0 15px;
-
-      font-size: 28px;
-
-    }
-
-
-    #orientationMessage p {
-
-      margin: 0;
-
-      font-size: 18px;
 
     }
 
@@ -222,7 +172,7 @@
   ></video>
 
 
-  <!-- MENSAGEM -->
+  <!-- TEXTO -->
 
   <div id="message">
     VIRE O CELULAR
@@ -232,21 +182,6 @@
   <!-- BOLINHA -->
 
   <div id="teste"></div>
-
-
-  <!-- MENSAGEM DE ORIENTAÇÃO -->
-
-  <div id="orientationMessage">
-
-    <h1>
-      VIRE O CELULAR
-    </h1>
-
-    <p>
-      Coloque o celular na horizontal
-    </p>
-
-  </div>
 
 
   <script>
@@ -269,66 +204,6 @@
     const bolinha =
       document.getElementById("teste");
 
-    const orientationMessage =
-      document.getElementById("orientationMessage");
-
-
-    /* CONTROLE */
-
-    let cameraAtiva = false;
-
-
-    /*
-      VERIFICA SE O CELULAR
-      ESTÁ EM PAISAGEM
-    */
-
-    function verificarOrientacao() {
-
-      const horizontal =
-        window.innerWidth >
-        window.innerHeight;
-
-
-      if (horizontal) {
-
-        orientationMessage.style.display =
-          "none";
-
-      } else {
-
-        orientationMessage.style.display =
-          "flex";
-
-      }
-
-    }
-
-
-    /*
-      VERIFICA A ORIENTAÇÃO
-      QUANDO A PÁGINA ABRE
-    */
-
-    verificarOrientacao();
-
-
-    /*
-      VERIFICA NOVAMENTE
-      QUANDO O CELULAR GIRA
-    */
-
-    window.addEventListener(
-      "resize",
-      verificarOrientacao
-    );
-
-
-    window.addEventListener(
-      "orientationchange",
-      verificarOrientacao
-    );
-
 
     /* BOTÃO INICIAR */
 
@@ -350,9 +225,7 @@
             await navigator.mediaDevices.getUserMedia({
 
               video: {
-
                 facingMode: "environment"
-
               },
 
               audio: false
@@ -364,19 +237,13 @@
             stream;
 
 
-          cameraAtiva =
-            true;
-
-
           /* ESCONDE TELA INICIAL */
 
           start.style.display =
             "none";
 
 
-          /*
-            ATIVA O SENSOR
-          */
+          /* INSTRUÇÃO */
 
           message.innerHTML =
             "CÂMERA FUNCIONANDO!<br><br>" +
@@ -395,6 +262,8 @@
             "15px";
 
 
+          /* ATIVAR SENSOR */
+
           message.addEventListener(
             "click",
             ativarSensor
@@ -402,7 +271,6 @@
 
 
         }
-
 
         catch (error) {
 
@@ -434,7 +302,8 @@
 
 
         /*
-          PERMISSÃO DO SENSOR
+          ALGUNS NAVEGADORES
+          PRECISAM DE PERMISSÃO
         */
 
         if (
@@ -471,9 +340,7 @@
         }
 
 
-        /*
-          ATIVA O SENSOR
-        */
+        /* COMEÇA A ESCUTAR O SENSOR */
 
         window.addEventListener(
 
@@ -485,14 +352,8 @@
 
 
         message.innerHTML =
-          "SENSOR ATIVADO";
-
-
-        /*
-          MOSTRA A ORIENTAÇÃO
-        */
-
-        verificarOrientacao();
+          "SENSOR ATIVADO<br>" +
+          "MEXA O CELULAR";
 
 
       }
@@ -512,41 +373,70 @@
     }
 
 
-    /*
-      MOVIMENTO DO CELULAR
-    */
+    /* LEITURA DO SENSOR */
 
     function mostrarOrientacao(event) {
 
+
+      /*
+        GAMMA CONTROLA
+        A MOVIMENTAÇÃO HORIZONTAL
+      */
 
       const gamma =
         event.gamma || 0;
 
 
       /*
-        MOVIMENTO DA BOLINHA
+        O SINAL FOI INVERTIDO
+        PARA CORRESPONDER AO
+        MOVIMENTO QUE QUEREMOS
       */
 
       const posicao =
         50 - (gamma / 45) * 30;
 
 
+      /* MOVE A BOLINHA */
+
       bolinha.style.left =
         posicao + "%";
 
 
-      /*
-        MOSTRA GAMMA
-      */
+      /* MOSTRA OS VALORES */
+
+      const alpha =
+        event.alpha !== null
+          ? Math.round(event.alpha)
+          : "N/A";
+
+
+      const beta =
+        event.beta !== null
+          ? Math.round(event.beta)
+          : "N/A";
+
+
+      const gammaTexto =
+        event.gamma !== null
+          ? Math.round(event.gamma)
+          : "N/A";
+
 
       message.innerHTML =
 
-        "SENSOR ATIVO<br><br>" +
+        "VIRE O CELULAR<br><br>" +
+
+        "ALPHA: " +
+        alpha +
+        "°<br>" +
+
+        "BETA: " +
+        beta +
+        "°<br>" +
 
         "GAMMA: " +
-
-        Math.round(gamma) +
-
+        gammaTexto +
         "°";
 
     }
