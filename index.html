@@ -105,10 +105,16 @@
           window.addEventListener("deviceorientation", handleOrientation);
         }
 
-      } catch (error) {
-        console.error(error);
-        message.textContent = "Não foi possível acessar a câmera.";
-      }
+     } catch (error) {
+  console.error(error);
+
+  message.textContent =
+    "ERRO: " + error.name + " — " + error.message;
+
+  message.style.background = "white";
+  message.style.color = "black";
+  message.style.padding = "15px";
+}
     });
 
     function handleOrientation(event) {
