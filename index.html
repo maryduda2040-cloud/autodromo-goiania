@@ -12,19 +12,16 @@
 
   <title>Autódromo de Goiânia — Jogo</title>
 
-
   <style>
 
     * {
       box-sizing: border-box;
     }
 
-
     html,
     body {
 
       margin: 0;
-
       width: 100%;
       height: 100%;
 
@@ -50,9 +47,32 @@
 
       object-fit: cover;
 
-      display: block;
-
       z-index: 1;
+
+    }
+
+
+    /* ÁREA DA PISTA */
+
+    #pistaContainer {
+
+      position: fixed;
+
+      left: 50%;
+
+      bottom: 0;
+
+      width: 100%;
+
+      height: 100%;
+
+      transform: translateX(-50%);
+
+      transform-origin: center bottom;
+
+      z-index: 5;
+
+      pointer-events: none;
 
     }
 
@@ -61,25 +81,20 @@
 
     #pista {
 
-      position: fixed;
+      position: absolute;
 
       left: 50%;
 
       bottom: 0;
 
-      transform:
-        translate(
-          calc(-50% + 0px),
-          0px
-        );
-
       width: 100%;
 
       height: auto;
 
-      z-index: 5;
+      transform:
+        translateX(-50%);
 
-      pointer-events: none;
+      transform-origin: center bottom;
 
     }
 
@@ -121,39 +136,6 @@
 
     }
 
-
-    /* TEXTO */
-
-    #message {
-
-      position: fixed;
-
-      top: 20px;
-
-      left: 50%;
-
-      transform:
-        translateX(-50%);
-
-      z-index: 20;
-
-      color: white;
-
-      background:
-        rgba(0, 0, 0, 0.65);
-
-      font-size: 18px;
-
-      font-weight: bold;
-
-      text-align: center;
-
-      padding: 10px;
-
-      border-radius: 8px;
-
-    }
-
   </style>
 
 </head>
@@ -184,16 +166,15 @@
 
   <!-- PISTA -->
 
-  <img
-    id="pista"
-    src="pista.png"
-    alt=""
-  >
+  <div id="pistaContainer">
 
+    <img
+      id="pista"
+      src="pista.png"
+      alt=""
+    >
 
-  <!-- TEXTO -->
-
-  <div id="message"></div>
+  </div>
 
 
   <script>
@@ -219,22 +200,15 @@
       );
 
 
-    const message =
+    const pistaContainer =
       document.getElementById(
-        "message"
-      );
-
-
-    const pista =
-      document.getElementById(
-        "pista"
+        "pistaContainer"
       );
 
 
     /*
 
-      GAMMA DO CELULAR
-      QUANDO CENTRALIZADO
+      GAMMA CENTRAL
 
     */
 
@@ -243,42 +217,42 @@
 
     /*
 
-      POSIÇÃO LATERAL
+      MOVIMENTO LATERAL
 
     */
 
-    let posicaoPistaX = 0;
+    let posicaoX = 0;
 
 
     /*
 
-      POSIÇÃO VERTICAL
+      ESCALA DA PISTA
 
     */
 
-    let posicaoPistaY = 0;
+    let escala = 1;
 
 
     /*
-      CONTROLE DA ANIMAÇÃO
+
+      CONTROLE DA CORRIDA
+
     */
 
     let corridaIniciada = false;
 
-    let ultimaAtualizacao = 0;
+    let ultimoTempo = 0;
 
 
     /*
-      VELOCIDADE DE AVANÇO
+      VELOCIDADE DE CRESCIMENTO
 
-      Quanto maior o número,
-      mais rápida será a sensação
-      de movimento.
+      Vamos começar devagar.
 
     */
 
     const velocidade =
-      80;
+      0.08;
 
 
     /*
@@ -290,15 +264,11 @@
       async () => {
 
 
-        message.textContent =
-          "";
-
-
         try {
 
 
           /*
-            CÂMERA TRASEIRA
+            ABRE CÂMERA
           */
 
           const stream =
@@ -323,7 +293,7 @@
 
 
           /*
-            ESCONDE TELA INICIAL
+            ESCONDE BOTÃO
           */
 
           start.style.display =
@@ -343,11 +313,10 @@
         catch (error) {
 
 
-          message.textContent =
-            "ERRO DA CÂMERA: " +
-            error.name +
-            " — " +
-            error.message;
+          console.log(
+            "Erro da câmera:",
+            error
+          );
 
         }
 
@@ -356,7 +325,7 @@
 
 
     /*
-      ATIVAR SENSOR
+      SENSOR
     */
 
     async function ativarSensor() {
@@ -366,7 +335,8 @@
 
 
         /*
-          PERMISSÃO DO SENSOR
+          PEDIDO DE PERMISSÃO
+          QUANDO NECESSÁRIO
         */
 
         if (
@@ -393,7 +363,6 @@
             "granted"
           ) {
 
-
             return;
 
           }
@@ -402,21 +371,20 @@
 
 
         /*
-          COMEÇA A ESCUTAR
-          O SENSOR
+          ESCUTA SENSOR
         */
 
         window.addEventListener(
 
           "deviceorientation",
 
-          mostrarOrientacao
+          controlarPista
 
         );
 
 
         /*
-          COMEÇA A CORRIDA
+          COMEÇA CORRIDA
         */
 
         iniciarCorrida();
@@ -429,7 +397,7 @@
 
 
         console.log(
-          "Erro no sensor:",
+          "Erro do sensor:",
           error
         );
 
@@ -439,17 +407,13 @@
 
 
     /*
-      SENSOR
+      CONTROLE LATERAL
     */
 
-    function mostrarOrientacao(
+    function controlarPista(
       event
     ) {
 
-
-      /*
-        GAMMA ATUAL
-      */
 
       const gamma =
         event.gamma || 0;
@@ -464,7 +428,11 @@
 
 
       /*
-        DESTINO LATERAL
+        MOVIMENTO LATERAL
+
+        Mantemos exatamente
+        a lógica que funcionou.
+
       */
 
       let alvo =
@@ -472,7 +440,7 @@
 
 
       /*
-        LIMITA MOVIMENTO
+        LIMITA A MOVIMENTAÇÃO
       */
 
       alvo =
@@ -489,18 +457,26 @@
         MOVIMENTO SUAVE
       */
 
-      posicaoPistaX +=
-        (alvo - posicaoPistaX)
+      posicaoX +=
+        (alvo - posicaoX)
         * 0.15;
 
 
-      atualizarPista();
+      /*
+        APLICA POSIÇÃO LATERAL
+      */
+
+      pista.style.transform =
+
+        `translateX(
+          calc(-50% + ${posicaoX}px)
+        )`;
 
     }
 
 
     /*
-      INICIA A CORRIDA
+      INICIA CORRIDA
     */
 
     function iniciarCorrida() {
@@ -519,22 +495,22 @@
         true;
 
 
-      ultimaAtualizacao =
+      ultimoTempo =
         performance.now();
 
 
       requestAnimationFrame(
-        animarPista
+        animarCorrida
       );
 
     }
 
 
     /*
-      ANIMAÇÃO DA PISTA
+      ANIMAÇÃO
     */
 
-    function animarPista(
+    function animarCorrida(
       tempo
     ) {
 
@@ -549,79 +525,76 @@
 
 
       /*
-        TEMPO ENTRE FRAMES
+        TEMPO PASSADO
       */
 
       const delta =
         (tempo -
-          ultimaAtualizacao)
+          ultimoTempo)
         / 1000;
 
 
-      ultimaAtualizacao =
+      ultimoTempo =
         tempo;
 
 
       /*
-        AVANÇA A PISTA
+        AUMENTA A PISTA
 
-        A posição vai subindo
-        continuamente.
+        Isso cria a sensação
+        de aproximação.
 
       */
 
-      posicaoPistaY -=
+      escala +=
         velocidade * delta;
 
 
       /*
-        QUANDO A PISTA SOBE
-        DEMAIS, VOLTA PARA BAIXO
+        LIMITA O CRESCIMENTO
 
-        Isso cria um movimento
-        contínuo para teste.
+        Para o teste,
+        vamos até 1.8x.
 
       */
 
       if (
-        posicaoPistaY < -300
+        escala > 1.8
       ) {
 
-        posicaoPistaY =
-          0;
+        escala = 1;
 
       }
 
 
-      atualizarPista();
+      /*
+        APLICA ESCALA
 
+        O ponto de origem
+        fica na parte inferior.
+
+      */
+
+      pista.style.transform =
+
+        `translateX(
+          calc(-50% + ${posicaoX}px)
+        )
+        scale(${escala})`;
+
+
+      /*
+        CONTINUA
+      */
 
       requestAnimationFrame(
-        animarPista
+        animarCorrida
       );
 
     }
 
 
-    /*
-      ATUALIZA VISUAL
-    */
-
-    function atualizarPista() {
-
-
-      pista.style.transform =
-
-        `translate(
-          calc(-50% + ${posicaoPistaX}px),
-          ${posicaoPistaY}px
-        )`;
-
-    }
-
-
   </script>
-
 
 </body>
 
