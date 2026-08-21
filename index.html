@@ -68,7 +68,10 @@
       bottom: 0;
 
       transform:
-        translateX(-50%);
+        translate(
+          calc(-50% + 0px),
+          0px
+        );
 
       width: 100%;
 
@@ -77,9 +80,6 @@
       z-index: 5;
 
       pointer-events: none;
-
-      transition:
-        transform 0.08s linear;
 
     }
 
@@ -148,9 +148,6 @@
 
       text-align: center;
 
-      text-shadow:
-        0 2px 5px #000;
-
       padding: 10px;
 
       border-radius: 8px;
@@ -196,9 +193,7 @@
 
   <!-- TEXTO -->
 
-  <div id="message">
-    VIRE O CELULAR
-  </div>
+  <div id="message"></div>
 
 
   <script>
@@ -239,7 +234,7 @@
     /*
 
       GAMMA DO CELULAR
-      QUANDO ESTÁ CENTRALIZADO
+      QUANDO CENTRALIZADO
 
     */
 
@@ -248,11 +243,42 @@
 
     /*
 
-      POSIÇÃO DA PISTA
+      POSIÇÃO LATERAL
 
     */
 
-    let posicaoPista = 0;
+    let posicaoPistaX = 0;
+
+
+    /*
+
+      POSIÇÃO VERTICAL
+
+    */
+
+    let posicaoPistaY = 0;
+
+
+    /*
+      CONTROLE DA ANIMAÇÃO
+    */
+
+    let corridaIniciada = false;
+
+    let ultimaAtualizacao = 0;
+
+
+    /*
+      VELOCIDADE DE AVANÇO
+
+      Quanto maior o número,
+      mais rápida será a sensação
+      de movimento.
+
+    */
+
+    const velocidade =
+      80;
 
 
     /*
@@ -265,7 +291,7 @@
 
 
         message.textContent =
-          "ABRINDO CÂMERA...";
+          "";
 
 
         try {
@@ -305,18 +331,10 @@
 
 
           /*
-            PEDE ATIVAÇÃO DO SENSOR
+            ATIVA SENSOR
           */
 
-          message.innerHTML =
-            "CÂMERA FUNCIONANDO!<br><br>" +
-            "TOQUE AQUI PARA ATIVAR O SENSOR";
-
-
-          message.addEventListener(
-            "click",
-            ativarSensor
-          );
+          ativarSensor();
 
 
         }
@@ -344,18 +362,11 @@
     async function ativarSensor() {
 
 
-      message.removeEventListener(
-        "click",
-        ativarSensor
-      );
-
-
       try {
 
 
         /*
-          ALGUNS NAVEGADORES
-          PRECISAM DE PERMISSÃO
+          PERMISSÃO DO SENSOR
         */
 
         if (
@@ -383,9 +394,6 @@
           ) {
 
 
-            message.textContent =
-              "PERMISSÃO DO SENSOR NÃO CONCEDIDA.";
-
             return;
 
           }
@@ -395,6 +403,7 @@
 
         /*
           COMEÇA A ESCUTAR
+          O SENSOR
         */
 
         window.addEventListener(
@@ -406,8 +415,11 @@
         );
 
 
-        message.innerHTML =
-          "VIRE O CELULAR";
+        /*
+          COMEÇA A CORRIDA
+        */
+
+        iniciarCorrida();
 
 
       }
@@ -416,11 +428,10 @@
       catch (error) {
 
 
-        message.innerHTML =
-          "ERRO DO SENSOR:<br>" +
-          error.name +
-          " — " +
-          error.message;
+        console.log(
+          "Erro no sensor:",
+          error
+        );
 
       }
 
@@ -445,16 +456,7 @@
 
 
       /*
-        DIFERENÇA EM RELAÇÃO
-        AO CENTRO
-
-        Exemplo:
-
-        Gamma 25
-        Centro 4
-
-        Diferença = 21
-
+        DIFERENÇA DO CENTRO
       */
 
       const diferenca =
@@ -462,14 +464,7 @@
 
 
       /*
-        TRANSFORMA A DIFERENÇA
-        EM MOVIMENTO
-
-        O sinal negativo faz:
-
-        esquerda → esquerda
-        direita → direita
-
+        DESTINO LATERAL
       */
 
       let alvo =
@@ -477,10 +472,7 @@
 
 
       /*
-        LIMITA A PISTA
-
-        PARA ELA NÃO SAIR
-        COMPLETAMENTE DA TELA
+        LIMITA MOVIMENTO
       */
 
       alvo =
@@ -495,37 +487,135 @@
 
       /*
         MOVIMENTO SUAVE
-
-        A pista não "teleporta"
-        de um lugar para outro.
-
       */
 
-      posicaoPista +=
-        (alvo - posicaoPista)
+      posicaoPistaX +=
+        (alvo - posicaoPistaX)
         * 0.15;
 
 
+      atualizarPista();
+
+    }
+
+
+    /*
+      INICIA A CORRIDA
+    */
+
+    function iniciarCorrida() {
+
+
+      if (
+        corridaIniciada
+      ) {
+
+        return;
+
+      }
+
+
+      corridaIniciada =
+        true;
+
+
+      ultimaAtualizacao =
+        performance.now();
+
+
+      requestAnimationFrame(
+        animarPista
+      );
+
+    }
+
+
+    /*
+      ANIMAÇÃO DA PISTA
+    */
+
+    function animarPista(
+      tempo
+    ) {
+
+
+      if (
+        !corridaIniciada
+      ) {
+
+        return;
+
+      }
+
+
       /*
-        APLICA MOVIMENTO
+        TEMPO ENTRE FRAMES
       */
+
+      const delta =
+        (tempo -
+          ultimaAtualizacao)
+        / 1000;
+
+
+      ultimaAtualizacao =
+        tempo;
+
+
+      /*
+        AVANÇA A PISTA
+
+        A posição vai subindo
+        continuamente.
+
+      */
+
+      posicaoPistaY -=
+        velocidade * delta;
+
+
+      /*
+        QUANDO A PISTA SOBE
+        DEMAIS, VOLTA PARA BAIXO
+
+        Isso cria um movimento
+        contínuo para teste.
+
+      */
+
+      if (
+        posicaoPistaY < -300
+      ) {
+
+        posicaoPistaY =
+          0;
+
+      }
+
+
+      atualizarPista();
+
+
+      requestAnimationFrame(
+        animarPista
+      );
+
+    }
+
+
+    /*
+      ATUALIZA VISUAL
+    */
+
+    function atualizarPista() {
+
 
       pista.style.transform =
-        `translateX(calc(-50% + ${posicaoPista}px))`;
 
-
-      /*
-        MOSTRA GAMMA
-
-        DEIXAREMOS ISSO
-        TEMPORARIAMENTE PARA TESTE.
-
-      */
-
-      message.innerHTML =
-        "GAMMA: " +
-        Math.round(gamma) +
-        "°";
+        `translate(
+          calc(-50% + ${posicaoPistaX}px),
+          ${posicaoPistaY}px
+        )`;
 
     }
 
