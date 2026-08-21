@@ -73,58 +73,77 @@
   </div>
 
   <script>
-    const start = document.getElementById("start");
-    const startButton = document.getElementById("startButton");
-    const camera = document.getElementById("camera");
-    const message = document.getElementById("message");
+  const start = document.getElementById("start");
+  const startButton = document.getElementById("startButton");
+  const camera = document.getElementById("camera");
+  const message = document.getElementById("message");
 
-    startButton.addEventListener("click", async () => {
+  startButton.addEventListener("click", async () => {
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" }
-          },
-          audio: false
-        });
+    message.textContent = "ABRINDO CÂMERA...";
 
-        camera.srcObject = stream;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment"
+        },
+        audio: false
+      });
 
-        start.style.display = "none";
+      camera.srcObject = stream;
+      start.style.display = "none";
 
-        if (typeof DeviceOrientationEvent !== "undefined" &&
-            typeof DeviceOrientationEvent.requestPermission === "function") {
+      // Verifica se o navegador precisa pedir permissão para o sensor
+      if (
+        typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"
+      ) {
+        const permission = await DeviceOrientationEvent.requestPermission();
 
-          const permission = await DeviceOrientationEvent.requestPermission();
-
-          if (permission === "granted") {
-            window.addEventListener("deviceorientation", handleOrientation);
-          }
-
+        if (permission === "granted") {
+          iniciarSensor();
         } else {
-          window.addEventListener("deviceorientation", handleOrientation);
+          message.textContent = "Permissão do sensor não concedida.";
         }
 
-     } catch (error) {
-  console.error(error);
+      } else {
+        iniciarSensor();
+      }
 
-  message.textContent =
-    "ERRO: " + error.name + " — " + error.message;
+    } catch (error) {
+      message.textContent =
+        "ERRO: " + error.name + " — " + error.message;
 
-  message.style.background = "white";
-  message.style.color = "black";
-  message.style.padding = "15px";
-}
-    });
-
-    function handleOrientation(event) {
-      console.log({
-        alpha: event.alpha,
-        beta: event.beta,
-        gamma: event.gamma
-      });
+      message.style.background = "white";
+      message.style.color = "black";
+      message.style.padding = "15px";
     }
-  </script>
+  });
+
+
+  function iniciarSensor() {
+
+    message.style.background = "rgba(0,0,0,0.7)";
+    message.style.color = "white";
+    message.style.padding = "10px";
+
+    window.addEventListener("deviceorientation", mostrarOrientacao);
+  }
+
+
+  function mostrarOrientacao(event) {
+
+    const alpha = Math.round(event.alpha || 0);
+    const beta = Math.round(event.beta || 0);
+    const gamma = Math.round(event.gamma || 0);
+
+    message.innerHTML =
+      "VIRE O CELULAR<br>" +
+      "Alpha: " + alpha + "°<br>" +
+      "Beta: " + beta + "°<br>" +
+      "Gamma: " + gamma + "°";
+  }
+</script>
 
 </body>
 </html>
