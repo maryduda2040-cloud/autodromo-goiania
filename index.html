@@ -2,16 +2,10 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Autódromo de Goiânia — Jogo</title>
 
   <style>
-
     * {
       box-sizing: border-box;
     }
@@ -26,8 +20,6 @@
       background: #111;
     }
 
-    /* CÂMERA */
-
     #camera {
       width: 100%;
       height: 100%;
@@ -35,428 +27,168 @@
       display: block;
     }
 
-
-    /* TELA INICIAL */
-
     #start {
       position: fixed;
-
       inset: 0;
-
       display: flex;
-
       align-items: center;
-
       justify-content: center;
-
       background: #111;
-
       z-index: 10;
     }
 
-
-    /* BOTÃO */
-
     button {
-
       border: none;
-
       padding: 18px 30px;
-
       font-size: 18px;
-
       font-weight: bold;
-
       cursor: pointer;
     }
 
-
-    /* TEXTO */
-
     #message {
-
       position: fixed;
-
       top: 20px;
-
       left: 50%;
-
       transform: translateX(-50%);
-
       z-index: 5;
-
       color: white;
-
-      font-size: 18px;
-
+      font-size: 20px;
       font-weight: bold;
-
       text-align: center;
-
       text-shadow: 0 2px 5px #000;
-
-      padding: 10px;
     }
-
-
-    /* BOLINHA DE TESTE */
-
-    #teste {
-
-      position: fixed;
-
-      top: 50%;
-
-      left: 50%;
-
-      transform: translate(-50%, -50%);
-
-      width: 50px;
-
-      height: 50px;
-
-      border-radius: 50%;
-
-      background: white;
-
-      z-index: 6;
-
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-
-    }
-
   </style>
 </head>
 
-
 <body>
 
-
-  <!-- TELA INICIAL -->
-
   <div id="start">
-
-    <button id="startButton">
-      INICIAR CORRIDA
-    </button>
-
+    <button id="startButton">INICIAR CORRIDA</button>
   </div>
 
-
-  <!-- CÂMERA -->
-
-  <video
-    id="camera"
-    autoplay
-    playsinline
-  ></video>
-
-
-  <!-- TEXTO -->
+  <video id="camera" autoplay playsinline></video>
 
   <div id="message">
     VIRE O CELULAR
   </div>
 
-
-  <!-- BOLINHA -->
-
-  <div id="teste"></div>
-
-
   <script>
+  const start = document.getElementById("start");
+  const startButton = document.getElementById("startButton");
+  const camera = document.getElementById("camera");
+  const message = document.getElementById("message");
 
-    /* ELEMENTOS */
+  let sensorAtivo = false;
 
-    const start =
-      document.getElementById("start");
+  startButton.addEventListener("click", async () => {
 
-    const startButton =
-      document.getElementById("startButton");
+    message.textContent = "ABRINDO CÂMERA...";
 
-    const camera =
-      document.getElementById("camera");
+    try {
 
-    const message =
-      document.getElementById("message");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment"
+        },
+        audio: false
+      });
 
-    const teste =
-      document.getElementById("teste");
+      camera.srcObject = stream;
 
-
-    /* ESCONDE A BOLINHA NO COMEÇO */
-
-    teste.style.display = "none";
-
-
-    /* BOTÃO INICIAR */
-
-    startButton.addEventListener(
-      "click",
-      async () => {
-
-        message.textContent =
-          "ABRINDO CÂMERA...";
-
-
-        try {
-
-          /* ABRIR CÂMERA */
-
-          const stream =
-            await navigator.mediaDevices.getUserMedia({
-
-              video: {
-                facingMode: "environment"
-              },
-
-              audio: false
-
-            });
-
-
-          camera.srcObject = stream;
-
-
-          /* ESCONDER TELA INICIAL */
-
-          start.style.display = "none";
-
-
-          /* MOSTRAR INSTRUÇÃO */
-
-          message.innerHTML =
-            "CÂMERA FUNCIONANDO!<br><br>" +
-            "TOQUE AQUI PARA ATIVAR O SENSOR";
-
-
-          message.style.background =
-            "rgba(0,0,0,0.7)";
-
-
-          message.style.color =
-            "white";
-
-
-          message.style.padding =
-            "15px";
-
-
-          /* CLIQUE PARA ATIVAR SENSOR */
-
-          message.addEventListener(
-            "click",
-            ativarSensor
-          );
-
-        }
-
-
-        catch (error) {
-
-          message.textContent =
-            "ERRO DA CÂMERA: " +
-            error.name +
-            " — " +
-            error.message;
-
-        }
-
-      }
-    );
-
-
-    /* ATIVAR SENSOR */
-
-    async function ativarSensor() {
-
-
-      message.removeEventListener(
-        "click",
-        ativarSensor
-      );
-
-
-      try {
-
-
-        /*
-          ALGUNS NAVEGADORES
-          PRECISAM DE PERMISSÃO
-        */
-
-        if (
-
-          typeof DeviceOrientationEvent !==
-          "undefined"
-
-          &&
-
-          typeof DeviceOrientationEvent
-            .requestPermission ===
-          "function"
-
-        ) {
-
-
-          const permission =
-            await DeviceOrientationEvent
-              .requestPermission();
-
-
-          if (permission !== "granted") {
-
-
-            message.textContent =
-              "PERMISSÃO DO SENSOR NÃO CONCEDIDA.";
-
-
-            return;
-
-          }
-
-        }
-
-
-        /* ATIVAR SENSOR */
-
-        window.addEventListener(
-
-          "deviceorientation",
-
-          mostrarOrientacao
-
-        );
-
-
-        /* MOSTRAR BOLINHA */
-
-        teste.style.display =
-          "block";
-
-
-        message.innerHTML =
-          "SENSOR ATIVADO<br>" +
-          "MEXA O CELULAR";
-
-
-      }
-
-
-      catch (error) {
-
-
-        message.innerHTML =
-          "ERRO DO SENSOR:<br>" +
-          error.name +
-          " — " +
-          error.message;
-
-      }
-
-    }
-
-
-    /* MOVIMENTO DO CELULAR */
-
-    function mostrarOrientacao(event) {
-
-
-      /*
-        GAMMA REPRESENTA
-        A INCLINAÇÃO PARA
-        ESQUERDA / DIREITA
-      */
-
-      const gamma =
-        event.gamma || 0;
-
-
-      /*
-        LIMITAMOS O VALOR
-        ENTRE -45 E +45
-      */
-
-      const limite = 45;
-
-
-      const movimento =
-        Math.max(
-
-          -limite,
-
-          Math.min(
-            limite,
-            gamma
-          )
-
-        );
-
-
-      /*
-        TRANSFORMA O VALOR
-        DO SENSOR EM POSIÇÃO
-        NA TELA
-      */
-
-      const porcentagem =
-        movimento / limite;
-
-
-      const deslocamento =
-        porcentagem * 300;
-
-
-      /*
-        MOVE A BOLINHA
-      */
-
-      teste.style.left =
-        `calc(50% + ${deslocamento}px)`;
-
-
-      /*
-        MOSTRA OS VALORES
-        PARA PODERMOS TESTAR
-      */
-
-      const alpha =
-        event.alpha !== null
-          ? Math.round(event.alpha)
-          : "N/A";
-
-
-      const beta =
-        event.beta !== null
-          ? Math.round(event.beta)
-          : "N/A";
-
-
-      const gammaTexto =
-        event.gamma !== null
-          ? Math.round(event.gamma)
-          : "N/A";
-
+      start.style.display = "none";
 
       message.innerHTML =
+        "CÂMERA FUNCIONANDO!<br><br>" +
+        "TOQUE AQUI PARA ATIVAR O SENSOR";
 
-        "VIRE O CELULAR<br><br>" +
+      message.style.background = "rgba(0,0,0,0.7)";
+      message.style.color = "white";
+      message.style.padding = "15px";
 
-        "ALPHA: " +
-        alpha +
-        "°<br>" +
+      message.addEventListener("click", ativarSensor);
 
-        "BETA: " +
-        beta +
-        "°<br>" +
+    } catch (error) {
 
-        "GAMMA: " +
-        gammaTexto +
-        "°";
+      message.textContent =
+        "ERRO DA CÂMERA: " +
+        error.name +
+        " — " +
+        error.message;
 
     }
+  });
 
-  </script>
+
+  async function ativarSensor() {
+
+    message.removeEventListener("click", ativarSensor);
+
+    try {
+
+      if (
+        typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"
+      ) {
+
+        const permission =
+          await DeviceOrientationEvent.requestPermission();
+
+        if (permission !== "granted") {
+
+          message.textContent =
+            "PERMISSÃO DO SENSOR NÃO CONCEDIDA.";
+
+          return;
+        }
+      }
+
+      window.addEventListener(
+        "deviceorientation",
+        mostrarOrientacao
+      );
+
+      sensorAtivo = true;
+
+      message.innerHTML =
+        "SENSOR ATIVADO<br>" +
+        "MEXA O CELULAR";
+
+    } catch (error) {
+
+      message.innerHTML =
+        "ERRO DO SENSOR:<br>" +
+        error.name +
+        " — " +
+        error.message;
+
+    }
+  }
+
+
+  function mostrarOrientacao(event) {
+
+    const alpha =
+      event.alpha !== null
+        ? Math.round(event.alpha)
+        : "N/A";
+
+    const beta =
+      event.beta !== null
+        ? Math.round(event.beta)
+        : "N/A";
+
+    const gamma =
+      event.gamma !== null
+        ? Math.round(event.gamma)
+        : "N/A";
+
+    message.innerHTML =
+      "SENSOR ATIVO<br><br>" +
+      "ALPHA: " + alpha + "°<br>" +
+      "BETA: " + beta + "°<br>" +
+      "GAMMA: " + gamma + "°";
+  }
+</script>
 
 </body>
 </html>
