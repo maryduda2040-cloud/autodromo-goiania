@@ -35,8 +35,6 @@
       height: auto;
       z-index: 2;
       pointer-events: none;
-
-      transform: translateX(-50%);
     }
 
     #start {
@@ -94,9 +92,7 @@
     const pista = document.getElementById("pista");
 
     let sensorAtivo = false;
-
     let posicaoPista = 0;
-    let alvoPista = 0;
 
 
     startButton.addEventListener("click", async () => {
@@ -167,8 +163,6 @@
         message.textContent =
           "VIRE O CELULAR";
 
-        animarPista();
-
       } catch (error) {
 
         message.textContent =
@@ -182,48 +176,13 @@
 
       if (event.gamma !== null) {
 
-        /*
-          gamma:
-          negativo = celular inclinado para a esquerda
-          positivo = celular inclinado para a direita
-        */
+        const movimento = event.gamma * 0.5;
 
-        alvoPista = -(event.gamma / 45) * 10;
+        pista.style.marginLeft = movimento + "px";
 
-        /*
-          Limita o movimento da pista
-          para ela não sair demais da tela.
-        */
-
-        if (alvoPista > 10) {
-          alvoPista = 10;
-        }
-
-        if (alvoPista < -10) {
-          alvoPista = -10;
-        }
       }
+
     }
-
-
-    function animarPista() {
-
-      /*
-        Faz a pista chegar suavemente
-        até a posição desejada.
-      */
-
-      posicaoPista +=
-        (alvoPista - posicaoPista) * 0.08;
-
-      pista.style.transform =
-        "translateX(calc(-50% + " +
-        posicaoPista +
-        "%))";
-
-      requestAnimationFrame(animarPista);
-    }
-
   </script>
 
 </body>
