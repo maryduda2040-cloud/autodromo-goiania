@@ -2,7 +2,6 @@
 <html lang="pt-BR">
 
 <head>
-
   <meta charset="UTF-8">
 
   <meta
@@ -10,8 +9,7 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>Autódromo de Goiânia — Jogo</title>
-
+  <title>Teste do Sensor</title>
 
   <style>
 
@@ -23,7 +21,6 @@
     body {
 
       margin: 0;
-
       width: 100%;
       height: 100%;
 
@@ -36,8 +33,6 @@
     }
 
 
-    /* CÂMERA */
-
     #camera {
 
       position: fixed;
@@ -49,14 +44,10 @@
 
       object-fit: cover;
 
-      display: block;
-
       z-index: 1;
 
     }
 
-
-    /* PISTA */
 
     #pista {
 
@@ -69,7 +60,6 @@
       transform: translateX(-50%);
 
       width: 100%;
-
       height: auto;
 
       z-index: 5;
@@ -78,8 +68,6 @@
 
     }
 
-
-    /* TELA INICIAL */
 
     #start {
 
@@ -100,8 +88,6 @@
     }
 
 
-    /* BOTÃO */
-
     button {
 
       border: none;
@@ -117,8 +103,6 @@
     }
 
 
-    /* TEXTO */
-
     #message {
 
       position: fixed;
@@ -133,15 +117,17 @@
 
       color: white;
 
+      background: rgba(0, 0, 0, 0.65);
+
       font-size: 18px;
 
       font-weight: bold;
 
       text-align: center;
 
-      text-shadow: 0 2px 5px #000;
+      padding: 12px;
 
-      padding: 10px;
+      border-radius: 8px;
 
     }
 
@@ -153,8 +139,6 @@
 <body>
 
 
-  <!-- TELA INICIAL -->
-
   <div id="start">
 
     <button id="startButton">
@@ -164,16 +148,12 @@
   </div>
 
 
-  <!-- CÂMERA -->
-
   <video
     id="camera"
     autoplay
     playsinline
   ></video>
 
-
-  <!-- PISTA -->
 
   <img
     id="pista"
@@ -182,8 +162,6 @@
   >
 
 
-  <!-- TEXTO -->
-
   <div id="message">
     VIRE O CELULAR
   </div>
@@ -191,8 +169,6 @@
 
   <script>
 
-
-    /* ELEMENTOS */
 
     const start =
       document.getElementById("start");
@@ -206,30 +182,20 @@
     const message =
       document.getElementById("message");
 
-    const pista =
-      document.getElementById("pista");
 
-
-    /* POSIÇÃO ATUAL DA PISTA */
-
-    let posicaoPista = 0;
-
-
-    /* BOTÃO INICIAR */
+    /*
+      BOTÃO INICIAR
+    */
 
     startButton.addEventListener(
       "click",
       async () => {
-
 
         message.textContent =
           "ABRINDO CÂMERA...";
 
 
         try {
-
-
-          /* CÂMERA TRASEIRA */
 
           const stream =
             await navigator.mediaDevices.getUserMedia({
@@ -247,32 +213,14 @@
             stream;
 
 
-          /* ESCONDE TELA INICIAL */
-
           start.style.display =
             "none";
 
-
-          /* INSTRUÇÃO */
 
           message.innerHTML =
             "CÂMERA FUNCIONANDO!<br><br>" +
             "TOQUE AQUI PARA ATIVAR O SENSOR";
 
-
-          message.style.background =
-            "rgba(0,0,0,0.7)";
-
-
-          message.style.color =
-            "white";
-
-
-          message.style.padding =
-            "15px";
-
-
-          /* ATIVAR SENSOR */
 
           message.addEventListener(
             "click",
@@ -283,7 +231,6 @@
         }
 
         catch (error) {
-
 
           message.textContent =
             "ERRO DA CÂMERA: " +
@@ -297,7 +244,9 @@
     );
 
 
-    /* ATIVAR SENSOR */
+    /*
+      ATIVAR SENSOR
+    */
 
     async function ativarSensor() {
 
@@ -310,11 +259,6 @@
 
       try {
 
-
-        /*
-          ALGUNS NAVEGADORES
-          PRECISAM DE PERMISSÃO
-        */
 
         if (
 
@@ -339,7 +283,6 @@
             permission !== "granted"
           ) {
 
-
             message.textContent =
               "PERMISSÃO DO SENSOR NÃO CONCEDIDA.";
 
@@ -350,25 +293,15 @@
         }
 
 
-        /* ATIVA SENSOR */
-
         window.addEventListener(
-
           "deviceorientation",
-
           mostrarOrientacao
-
         );
 
 
-        message.innerHTML =
-          "VIRE O CELULAR";
-
       }
 
-
       catch (error) {
-
 
         message.innerHTML =
           "ERRO DO SENSOR:<br>" +
@@ -381,60 +314,43 @@
     }
 
 
-    /* SENSOR */
+    /*
+      MOSTRA OS TRÊS EIXOS
+    */
 
     function mostrarOrientacao(event) {
 
 
-      /*
-        GAMMA REPRESENTA
-        A INCLINAÇÃO
-        ESQUERDA / DIREITA
-      */
+      const alpha =
+        event.alpha !== null
+          ? Math.round(event.alpha)
+          : "N/A";
+
+
+      const beta =
+        event.beta !== null
+          ? Math.round(event.beta)
+          : "N/A";
+
 
       const gamma =
-        event.gamma || 0;
+        event.gamma !== null
+          ? Math.round(event.gamma)
+          : "N/A";
 
-
-      /*
-        CONVERTE O MOVIMENTO
-        DO CELULAR EM MOVIMENTO
-        DA PISTA
-      */
-
-      const deslocamento =
-        gamma * 2;
-
-
-      posicaoPista =
-        Math.max(
-          -150,
-          Math.min(
-            150,
-            deslocamento
-          )
-        );
-
-
-      /*
-        APLICA O MOVIMENTO
-
-        Mantemos exatamente o
-        tamanho original da pista.
-      */
-
-      pista.style.transform =
-        `translateX(calc(-50% + ${posicaoPista}px))`;
-
-
-      /*
-        MOSTRA GAMMA
-      */
 
       message.innerHTML =
-        "VIRE O CELULAR<br><br>" +
+
+        "ALPHA: " +
+        alpha +
+        "°<br>" +
+
+        "BETA: " +
+        beta +
+        "°<br>" +
+
         "GAMMA: " +
-        Math.round(gamma) +
+        gamma +
         "°";
 
     }
