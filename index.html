@@ -40,12 +40,39 @@
 
     #camera {
 
+      position: fixed;
+
+      inset: 0;
+
       width: 100%;
       height: 100%;
 
       object-fit: cover;
 
       display: block;
+
+      z-index: 1;
+
+    }
+
+
+    /* PISTA */
+
+    #pista {
+
+      position: fixed;
+
+      left: 50%;
+      bottom: 0;
+
+      transform: translateX(-50%);
+
+      width: 100%;
+      height: auto;
+
+      z-index: 5;
+
+      pointer-events: none;
 
     }
 
@@ -116,34 +143,6 @@
 
     }
 
-
-    /* BOLINHA DE TESTE */
-
-    #teste {
-
-      position: fixed;
-
-      top: 50%;
-
-      left: 50%;
-
-      transform: translate(-50%, -50%);
-
-      width: 50px;
-
-      height: 50px;
-
-      border-radius: 50%;
-
-      background: white;
-
-      z-index: 6;
-
-      box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.5);
-
-    }
-
   </style>
 
 </head>
@@ -172,16 +171,20 @@
   ></video>
 
 
+  <!-- PISTA -->
+
+  <img
+    id="pista"
+    src="pista.png"
+    alt=""
+  >
+
+
   <!-- TEXTO -->
 
   <div id="message">
     VIRE O CELULAR
   </div>
-
-
-  <!-- BOLINHA -->
-
-  <div id="teste"></div>
 
 
   <script>
@@ -200,9 +203,6 @@
 
     const message =
       document.getElementById("message");
-
-    const bolinha =
-      document.getElementById("teste");
 
 
     /* BOTÃO INICIAR */
@@ -301,11 +301,6 @@
       try {
 
 
-        /*
-          ALGUNS NAVEGADORES
-          PRECISAM DE PERMISSÃO
-        */
-
         if (
 
           typeof DeviceOrientationEvent !==
@@ -340,7 +335,7 @@
         }
 
 
-        /* COMEÇA A ESCUTAR O SENSOR */
+        /* ATIVA SENSOR */
 
         window.addEventListener(
 
@@ -352,8 +347,7 @@
 
 
         message.innerHTML =
-          "SENSOR ATIVADO<br>" +
-          "MEXA O CELULAR";
+          "VIRE O CELULAR";
 
 
       }
@@ -373,73 +367,29 @@
     }
 
 
-    /* LEITURA DO SENSOR */
+    /* SENSOR */
 
     function mostrarOrientacao(event) {
 
-
       /*
-        GAMMA CONTROLA
-        A MOVIMENTAÇÃO HORIZONTAL
+        Por enquanto não vamos
+        movimentar a pista.
+        Estamos apenas recebendo
+        o sensor.
       */
 
       const gamma =
         event.gamma || 0;
 
 
-      /*
-        O SINAL FOI INVERTIDO
-        PARA CORRESPONDER AO
-        MOVIMENTO QUE QUEREMOS
-      */
-
-      const posicao =
-        50 - (gamma / 45) * 30;
-
-
-      /* MOVE A BOLINHA */
-
-      bolinha.style.left =
-        posicao + "%";
-
-
-      /* MOSTRA OS VALORES */
-
-      const alpha =
-        event.alpha !== null
-          ? Math.round(event.alpha)
-          : "N/A";
-
-
-      const beta =
-        event.beta !== null
-          ? Math.round(event.beta)
-          : "N/A";
-
-
-      const gammaTexto =
-        event.gamma !== null
-          ? Math.round(event.gamma)
-          : "N/A";
-
-
       message.innerHTML =
-
         "VIRE O CELULAR<br><br>" +
-
-        "ALPHA: " +
-        alpha +
-        "°<br>" +
-
-        "BETA: " +
-        beta +
-        "°<br>" +
-
         "GAMMA: " +
-        gammaTexto +
+        Math.round(gamma) +
         "°";
 
     }
+
 
   </script>
 
