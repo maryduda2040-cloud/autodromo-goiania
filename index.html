@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -9,7 +10,8 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>Teste do Sensor</title>
+  <title>Autódromo de Goiânia — Jogo</title>
+
 
   <style>
 
@@ -17,10 +19,12 @@
       box-sizing: border-box;
     }
 
+
     html,
     body {
 
       margin: 0;
+
       width: 100%;
       height: 100%;
 
@@ -33,6 +37,8 @@
     }
 
 
+    /* CÂMERA */
+
     #camera {
 
       position: fixed;
@@ -44,10 +50,14 @@
 
       object-fit: cover;
 
+      display: block;
+
       z-index: 1;
 
     }
 
+
+    /* PISTA */
 
     #pista {
 
@@ -57,17 +67,24 @@
 
       bottom: 0;
 
-      transform: translateX(-50%);
+      transform:
+        translateX(-50%);
 
       width: 100%;
+
       height: auto;
 
       z-index: 5;
 
       pointer-events: none;
 
+      transition:
+        transform 0.08s linear;
+
     }
 
+
+    /* TELA INICIAL */
 
     #start {
 
@@ -88,6 +105,8 @@
     }
 
 
+    /* BOTÃO */
+
     button {
 
       border: none;
@@ -103,6 +122,8 @@
     }
 
 
+    /* TEXTO */
+
     #message {
 
       position: fixed;
@@ -111,13 +132,15 @@
 
       left: 50%;
 
-      transform: translateX(-50%);
+      transform:
+        translateX(-50%);
 
       z-index: 20;
 
       color: white;
 
-      background: rgba(0, 0, 0, 0.65);
+      background:
+        rgba(0, 0, 0, 0.65);
 
       font-size: 18px;
 
@@ -125,7 +148,10 @@
 
       text-align: center;
 
-      padding: 12px;
+      text-shadow:
+        0 2px 5px #000;
+
+      padding: 10px;
 
       border-radius: 8px;
 
@@ -139,6 +165,8 @@
 <body>
 
 
+  <!-- TELA INICIAL -->
+
   <div id="start">
 
     <button id="startButton">
@@ -148,6 +176,8 @@
   </div>
 
 
+  <!-- CÂMERA -->
+
   <video
     id="camera"
     autoplay
@@ -155,12 +185,16 @@
   ></video>
 
 
+  <!-- PISTA -->
+
   <img
     id="pista"
     src="pista.png"
     alt=""
   >
 
+
+  <!-- TEXTO -->
 
   <div id="message">
     VIRE O CELULAR
@@ -170,17 +204,55 @@
   <script>
 
 
+    /* ELEMENTOS */
+
     const start =
-      document.getElementById("start");
+      document.getElementById(
+        "start"
+      );
+
 
     const startButton =
-      document.getElementById("startButton");
+      document.getElementById(
+        "startButton"
+      );
+
 
     const camera =
-      document.getElementById("camera");
+      document.getElementById(
+        "camera"
+      );
+
 
     const message =
-      document.getElementById("message");
+      document.getElementById(
+        "message"
+      );
+
+
+    const pista =
+      document.getElementById(
+        "pista"
+      );
+
+
+    /*
+
+      GAMMA DO CELULAR
+      QUANDO ESTÁ CENTRALIZADO
+
+    */
+
+    const gammaCentro = 4;
+
+
+    /*
+
+      POSIÇÃO DA PISTA
+
+    */
+
+    let posicaoPista = 0;
 
 
     /*
@@ -191,31 +263,50 @@
       "click",
       async () => {
 
+
         message.textContent =
           "ABRINDO CÂMERA...";
 
 
         try {
 
+
+          /*
+            CÂMERA TRASEIRA
+          */
+
           const stream =
-            await navigator.mediaDevices.getUserMedia({
+            await navigator
+              .mediaDevices
+              .getUserMedia({
 
-              video: {
-                facingMode: "environment"
-              },
+                video: {
 
-              audio: false
+                  facingMode:
+                    "environment"
 
-            });
+                },
+
+                audio: false
+
+              });
 
 
           camera.srcObject =
             stream;
 
 
+          /*
+            ESCONDE TELA INICIAL
+          */
+
           start.style.display =
             "none";
 
+
+          /*
+            PEDE ATIVAÇÃO DO SENSOR
+          */
 
           message.innerHTML =
             "CÂMERA FUNCIONANDO!<br><br>" +
@@ -230,7 +321,9 @@
 
         }
 
+
         catch (error) {
+
 
           message.textContent =
             "ERRO DA CÂMERA: " +
@@ -260,6 +353,11 @@
       try {
 
 
+        /*
+          ALGUNS NAVEGADORES
+          PRECISAM DE PERMISSÃO
+        */
+
         if (
 
           typeof DeviceOrientationEvent !==
@@ -280,8 +378,10 @@
 
 
           if (
-            permission !== "granted"
+            permission !==
+            "granted"
           ) {
+
 
             message.textContent =
               "PERMISSÃO DO SENSOR NÃO CONCEDIDA.";
@@ -293,15 +393,28 @@
         }
 
 
+        /*
+          COMEÇA A ESCUTAR
+        */
+
         window.addEventListener(
+
           "deviceorientation",
+
           mostrarOrientacao
+
         );
+
+
+        message.innerHTML =
+          "VIRE O CELULAR";
 
 
       }
 
+
       catch (error) {
+
 
         message.innerHTML =
           "ERRO DO SENSOR:<br>" +
@@ -315,45 +428,107 @@
 
 
     /*
-      MOSTRA OS TRÊS EIXOS
+      SENSOR
     */
 
-    function mostrarOrientacao(event) {
+    function mostrarOrientacao(
+      event
+    ) {
 
 
-      const alpha =
-        event.alpha !== null
-          ? Math.round(event.alpha)
-          : "N/A";
-
-
-      const beta =
-        event.beta !== null
-          ? Math.round(event.beta)
-          : "N/A";
-
+      /*
+        GAMMA ATUAL
+      */
 
       const gamma =
-        event.gamma !== null
-          ? Math.round(event.gamma)
-          : "N/A";
+        event.gamma || 0;
 
+
+      /*
+        DIFERENÇA EM RELAÇÃO
+        AO CENTRO
+
+        Exemplo:
+
+        Gamma 25
+        Centro 4
+
+        Diferença = 21
+
+      */
+
+      const diferenca =
+        gamma - gammaCentro;
+
+
+      /*
+        TRANSFORMA A DIFERENÇA
+        EM MOVIMENTO
+
+        O sinal negativo faz:
+
+        esquerda → esquerda
+        direita → direita
+
+      */
+
+      let alvo =
+        -diferenca * 4;
+
+
+      /*
+        LIMITA A PISTA
+
+        PARA ELA NÃO SAIR
+        COMPLETAMENTE DA TELA
+      */
+
+      alvo =
+        Math.max(
+          -180,
+          Math.min(
+            180,
+            alvo
+          )
+        );
+
+
+      /*
+        MOVIMENTO SUAVE
+
+        A pista não "teleporta"
+        de um lugar para outro.
+
+      */
+
+      posicaoPista +=
+        (alvo - posicaoPista)
+        * 0.15;
+
+
+      /*
+        APLICA MOVIMENTO
+      */
+
+      pista.style.transform =
+        `translateX(calc(-50% + ${posicaoPista}px))`;
+
+
+      /*
+        MOSTRA GAMMA
+
+        DEIXAREMOS ISSO
+        TEMPORARIAMENTE PARA TESTE.
+
+      */
 
       message.innerHTML =
-
-        "ALPHA: " +
-        alpha +
-        "°<br>" +
-
-        "BETA: " +
-        beta +
-        "°<br>" +
-
         "GAMMA: " +
-        gamma +
+        Math.round(gamma) +
         "°";
 
     }
+
 
   </script>
 
