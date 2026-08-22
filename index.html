@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Autódromo de Goiânia — AR</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+canvas{display:block}
+#ui{position:fixed;inset:0;z-index:5;pointer-events:none}
+#box{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);width:min(88vw,420px);padding:16px;border-radius:16px;background:#000b;color:#fff;text-align:center;pointer-events:auto}
+button{width:100%;padding:15px;border:0;border-radius:12px;font-size:17px;font-weight:800}
+#place{display:none}
+#finish{display:none;position:fixed;inset:0;z-index:20;background:#111;color:#fff;align-items:center;justify-content:center;text-align:center;padding:30px}
+h1{font-size:clamp(30px,8vw,54px);line-height:1.05}
+</style>
+</head>
+<body>
+<div id="ui"><div id="box"><p id="status">Pronto para começar.</p><button id="start">INICIAR CORRIDA</button><button id="place">COLOCAR PISTA AQUI</button></div></div>
+<div id="finish"><h1>VOCÊ FINALIZOU SUA CORRIDA</h1></div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+const statusEl=document.querySelector("#status");
+const start=document.querySelector("#start");
+const place=document.querySelector("#place");
+const finish=document.querySelector("#finish");
+
+let scene,camera,renderer,controller,reticle;
+let hitSource=null,viewerSpace=null,sourceRequested=false;
+let placed=false,trackVideo=null;
+
+scene=new THREE.Scene();
+camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,100);
+renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.setClearColor(0,0);
+renderer.xr.enabled=true;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.6));
+
+reticle=new THREE.Mesh(
+  new THREE.RingGeometry(.08,.11,32).rotateX(-Math.PI/2),
+  new THREE.MeshBasicMaterial({color:0xffffff})
+);
+reticle.matrixAutoUpdate=false;
+reticle.visible=false;
+scene.add(reticle);
+
+controller=renderer.xr.getController(0);
+controller.addEventListener("select",()=>placeTrack());
+scene.add(controller);
+
+start.onclick=startAR;
+place.onclick=placeTrack;
+onresize=()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)};
+
+async function startAR(){
+  start.disabled=true;
+  statusEl.textContent="Abrindo a câmera AR...";
+  try{
+    if(!navigator.xr || !(await navigator.xr.isSessionSupported("immersive-ar"))){
+      throw new Error("AR não suportado neste aparelho/navegador.");
+    }
+    const session=await navigator.xr.requestSession("immersive-ar",{
+      requiredFeatures:["local","hit-test"],
+      optionalFeatures:["dom-overlay"],
+      domOverlay:{root:document.querySelector("#ui")}
+    });
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(session);
+    session.addEventListener("end",()=>{hitSource=null;viewerSpace=null;sourceRequested=false;});
+    start.style.display="none";
+    place.style.display="block";
+    statusEl.textContent="Aponte para o chão...";
+  }catch(e){
+    console.error(e);
+    statusEl.textContent="Este aparelho/navegador não oferece WebAR compatível. Teste no Chrome para Android com ARCore e pelo link HTTPS.";
+    start.disabled=false;
+  }
+}
+
+async function requestHitSource(session){
+  if(sourceRequested)return;
+  sourceRequested=true;
+  viewerSpace=await session.requestReferenceSpace("viewer");
+  hitSource=await session.requestHitTestSource({space:viewerSpace});
+}
+
+function placeTrack(){
+  if(!reticle.visible || placed)return;
+  placed=true;
+  place.style.display="none";
+  statusEl.textContent="Corrida iniciada!";
+
+  trackVideo=document.createElement("video");
+  trackVideo.src="pista.mp4";
+  trackVideo.muted=true;
+  trackVideo.playsInline=true;
+  trackVideo.preload="auto";
+
+  const texture=new THREE.VideoTexture(trackVideo);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  texture.minFilter=THREE.LinearFilter;
+  texture.magFilter=THREE.LinearFilter;
+
+  const material=new THREE.ShaderMaterial({
+    transparent:true,side:THREE.DoubleSide,
+    uniforms:{
+      map:{value:texture},
+      keyColor:{value:new THREE.Color(52/255,52/255,52/255)},
+      tolerance:{value:.11}
+    },
+    vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:`uniform sampler2D map;uniform vec3 keyColor;uniform float tolerance;varying vec2 vUv;
+    void main(){vec4 c=texture2D(map,vUv);float d=distance(c.rgb,keyColor);if(d<tolerance)discard;float a=smoothstep(tolerance*.65,tolerance,d);gl_FragColor=vec4(c.rgb,c.a*a);}`
+  });
+
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.35,2.42),material);
+  mesh.position.setFromMatrixPosition(reticle.matrix);
+  mesh.rotation.x=-Math.PI/2;
+  scene.add(mesh);
+
+  reticle.visible=false;
+  trackVideo.onended=()=>{finish.style.display="flex";document.querySelector("#box").style.display="none"};
+  trackVideo.play().catch(()=>{});
+}
+
+renderer.setAnimationLoop((time,frame)=>{
+  if(frame){
+    const session=renderer.xr.getSession();
+    if(!sourceRequested)requestHitSource(session);
+    if(hitSource){
+      const ref=renderer.xr.getReferenceSpace();
+      const results=frame.getHitTestResults(hitSource);
+      if(results.length && !placed){
+        const pose=results[0].getPose(ref);
+        if(pose){reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix);}
+      }else if(!placed)reticle.visible=false;
+    }
+  }
+  renderer.render(scene,camera);
+});
+</script>
+</body>
+</html>
