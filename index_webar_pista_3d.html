@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Autódromo de Goiânia — AR</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+  canvas{display:block}
+  #ui{position:fixed;inset:0;z-index:10;pointer-events:none}
+  #panel{
+    position:absolute;left:50%;bottom:max(22px,env(safe-area-inset-bottom));
+    transform:translateX(-50%);width:min(90vw,430px);
+    padding:16px;border-radius:18px;background:rgba(0,0,0,.72);
+    color:#fff;text-align:center;backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);pointer-events:auto
+  }
+  #status{margin:0 0 12px;font-size:16px;line-height:1.35}
+  button{
+    width:100%;border:0;border-radius:12px;padding:15px 20px;
+    font-size:17px;font-weight:800;cursor:pointer;background:#fff;color:#111
+  }
+  #place{display:none}
+  #finish{
+    position:fixed;inset:0;z-index:20;display:none;align-items:center;
+    justify-content:center;flex-direction:column;text-align:center;
+    background:rgba(0,0,0,.82);color:#fff;padding:28px
+  }
+  #finish h1{margin:0;font-size:clamp(30px,8vw,54px);line-height:1.05}
+  #finish button{margin-top:24px;max-width:280px}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div id="panel">
+    <p id="status">Pronto para começar.</p>
+    <button id="start">INICIAR CORRIDA</button>
+    <button id="place">COLOCAR PISTA AQUI</button>
+  </div>
+</div>
+
+<div id="finish">
+  <h1>VOCÊ FINALIZOU SUA CORRIDA</h1>
+  <button id="again">JOGAR NOVAMENTE</button>
+</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+const BLUE = 0x0f489d;
+const WHITE = 0xf8faff;
+const ASPHALT = 0x161719;
+const LINE = 0xf8faff;
+
+const statusEl = document.getElementById("status");
+const startBtn = document.getElementById("start");
+const placeBtn = document.getElementById("place");
+const panel = document.getElementById("panel");
+const finish = document.getElementById("finish");
+const againBtn = document.getElementById("again");
+
+let scene, camera, renderer, controller, reticle;
+let hitSource = null;
+let viewerSpace = null;
+let hitSourceRequested = false;
+let placed = false;
+let trackGroup = null;
+let raceTimer = null;
+
+init();
+
+function init(){
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(
+    70,
+    innerWidth / innerHeight,
+    0.01,
+    100
+  );
+
+  renderer = new THREE.WebGLRenderer({
+    antialias:true,
+    alpha:true,
+    powerPreference:"high-performance"
+  });
+
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setClearColor(0x000000, 0);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 1.6));
+
+  // Marcador que aparece sobre o chão encontrado.
+  reticle = new THREE.Mesh(
+    new THREE.RingGeometry(0.075, 0.105, 32).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({
+      color:WHITE,
+      transparent:true,
+      opacity:.95
+    })
+  );
+  reticle.matrixAutoUpdate = false;
+  reticle.visible = false;
+  scene.add(reticle);
+
+  controller = renderer.xr.getController(0);
+  controller.addEventListener("select", placeTrack);
+  scene.add(controller);
+
+  startBtn.addEventListener("click", startAR);
+  placeBtn.addEventListener("click", placeTrack);
+  againBtn.addEventListener("click", resetRace);
+
+  addEventListener("resize", onResize);
+
+  renderer.setAnimationLoop(render);
+}
+
+async function startAR(){
+  startBtn.disabled = true;
+  statusEl.textContent = "Abrindo a câmera AR...";
+
+  try{
+    if(!navigator.xr){
+      throw new Error("WebXR indisponível");
+    }
+
+    const supported =
+      await navigator.xr.isSessionSupported("immersive-ar");
+
+    if(!supported){
+      throw new Error("AR não suportado");
+    }
+
+    const session = await navigator.xr.requestSession("immersive-ar", {
+      requiredFeatures:["local","hit-test"],
+      optionalFeatures:["dom-overlay"],
+      domOverlay:{root:document.getElementById("ui")}
+    });
+
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(session);
+
+    session.addEventListener("end", () => {
+      hitSource = null;
+      viewerSpace = null;
+      hitSourceRequested = false;
+      placed = false;
+    });
+
+    startBtn.style.display = "none";
+    placeBtn.style.display = "block";
+    statusEl.textContent = "Aponte o celular para o chão...";
+
+  }catch(error){
+    console.error(error);
+    statusEl.textContent =
+      "O AR não está disponível neste aparelho. Teste no Chrome para Android com ARCore.";
+    startBtn.disabled = false;
+  }
+}
+
+async function requestHitSource(session){
+  if(hitSourceRequested) return;
+
+  hitSourceRequested = true;
+
+  try{
+    viewerSpace = await session.requestReferenceSpace("viewer");
+
+    hitSource =
+      await session.requestHitTestSource({
+        space:viewerSpace
+      });
+
+  }catch(error){
+    console.error("Hit test:", error);
+    hitSourceRequested = false;
+  }
+}
+
+function placeTrack(){
+  if(!reticle.visible || placed) return;
+
+  placed = true;
+  reticle.visible = false;
+  placeBtn.style.display = "none";
+  statusEl.textContent = "Corrida iniciada!";
+
+  // A pista começa exatamente no ponto encontrado no chão.
+  // Ela cresce PARA FRENTE, na direção em que a câmera estava apontando.
+  trackGroup = createTrack();
+
+  const floorPosition = new THREE.Vector3();
+  floorPosition.setFromMatrixPosition(reticle.matrix);
+
+  trackGroup.position.copy(floorPosition);
+
+  // Orienta a pista para a direção horizontal da câmera no momento do toque.
+  const forward = new THREE.Vector3(0,0,-1);
+  forward.applyQuaternion(camera.quaternion);
+  forward.y = 0;
+
+  if(forward.lengthSq() < 0.0001){
+    forward.set(0,0,-1);
+  }
+
+  forward.normalize();
+
+  // O eixo +Z do nosso grupo aponta para trás;
+  // usamos atan2 para alinhar a pista com a direção da câmera.
+  trackGroup.rotation.y = Math.atan2(forward.x, forward.z) + Math.PI;
+
+  scene.add(trackGroup);
+
+  // Corrida de 1 minuto.
+  let seconds = 60;
+
+  statusEl.textContent = "Tempo: 01:00";
+
+  raceTimer = setInterval(() => {
+    seconds--;
+
+    if(seconds > 0){
+      const min = String(Math.floor(seconds / 60)).padStart(2,"0");
+      const sec = String(seconds % 60).padStart(2,"0");
+      statusEl.textContent = `Corrida em andamento • ${min}:${sec}`;
+    }else{
+      clearInterval(raceTimer);
+      finishRace();
+    }
+  },1000);
+}
+
+function createTrack(){
+  const group = new THREE.Group();
+
+  /*
+    DIMENSÕES DA PISTA
+    largura: 1,10 m
+    comprimento: 4,00 m
+
+    A pista é construída em 3D, portanto não depende
+    do vídeo anterior.
+  */
+  const roadWidth = 1.10;
+  const roadLength = 4.00;
+
+  // Asphalt base.
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(roadWidth, roadLength),
+    new THREE.MeshStandardMaterial({
+      color:ASPHALT,
+      roughness:.92,
+      metalness:0
+    })
+  );
+
+  road.rotation.x = -Math.PI/2;
+  road.position.y = .008;
+  group.add(road);
+
+  // Linha central tracejada.
+  const dashCount = 10;
+  const dashLength = .18;
+  const gap = .22;
+
+  for(let i=0;i<dashCount;i++){
+    const z =
+      roadLength/2 -
+      .22 -
+      i * (dashLength + gap);
+
+    const dash = new THREE.Mesh(
+      new THREE.PlaneGeometry(.045,dashLength),
+      new THREE.MeshBasicMaterial({
+        color:LINE,
+        side:THREE.DoubleSide
+      })
+    );
+
+    dash.rotation.x = -Math.PI/2;
+    dash.position.set(0,.018,z);
+    group.add(dash);
+  }
+
+  // Faixas azul/branco nas duas bordas.
+  const curbWidth = .11;
+  const segmentLength = .22;
+  const segmentGap = .02;
+  const segmentStep = segmentLength + segmentGap;
+
+  const count = Math.floor(
+    (roadLength - .08) / segmentStep
+  );
+
+  for(let i=0;i<count;i++){
+    const z =
+      roadLength/2 -
+      .04 -
+      segmentLength/2 -
+      i * segmentStep;
+
+    const color =
+      i % 2 === 0 ? BLUE : WHITE;
+
+    addCurbSegment(
+      group,
+      -roadWidth/2 - curbWidth/2,
+      z,
+      curbWidth,
+      segmentLength,
+      color
+    );
+
+    addCurbSegment(
+      group,
+      roadWidth/2 + curbWidth/2,
+      z,
+      curbWidth,
+      segmentLength,
+      color
+    );
+  }
+
+  // Linha de largada.
+  const startLine = new THREE.Mesh(
+    new THREE.PlaneGeometry(roadWidth, .06),
+    new THREE.MeshBasicMaterial({
+      color:WHITE,
+      side:THREE.DoubleSide
+    })
+  );
+
+  startLine.rotation.x = -Math.PI/2;
+  startLine.position.set(0,.02,roadLength/2-.32);
+  group.add(startLine);
+
+  /*
+    Pequena sombra sob a pista.
+    Ajuda a não parecer que é um desenho colado
+    no chão.
+  */
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(
+      roadWidth + .08,
+      roadLength + .08
+    ),
+    new THREE.MeshBasicMaterial({
+      color:0x000000,
+      transparent:true,
+      opacity:.18,
+      depthWrite:false
+    })
+  );
+
+  shadow.rotation.x = -Math.PI/2;
+  shadow.position.y = .002;
+  group.add(shadow);
+
+  /*
+    A sombra precisa ficar atrás da pista no render,
+    então adicionamos a pista novamente à cena depois.
+  */
+  return group;
+}
+
+function addCurbSegment(
+  group,
+  x,
+  z,
+  width,
+  length,
+  color
+){
+  const curb = new THREE.Mesh(
+    new THREE.PlaneGeometry(width,length),
+    new THREE.MeshBasicMaterial({
+      color,
+      side:THREE.DoubleSide
+    })
+  );
+
+  curb.rotation.x = -Math.PI/2;
+  curb.position.set(x,.022,z);
+  group.add(curb);
+}
+
+function finishRace(){
+  if(raceTimer){
+    clearInterval(raceTimer);
+    raceTimer = null;
+  }
+
+  panel.style.display = "none";
+  finish.style.display = "flex";
+}
+
+function resetRace(){
+  finish.style.display = "none";
+  panel.style.display = "block";
+
+  if(trackGroup){
+    scene.remove(trackGroup);
+    trackGroup = null;
+  }
+
+  placed = false;
+  placeBtn.style.display = "block";
+  statusEl.textContent = "Aponte o celular para o chão...";
+}
+
+function render(timestamp,frame){
+  if(frame){
+    const session = renderer.xr.getSession();
+
+    if(!hitSourceRequested){
+      requestHitSource(session);
+    }
+
+    if(hitSource){
+      const referenceSpace =
+        renderer.xr.getReferenceSpace();
+
+      const results =
+        frame.getHitTestResults(hitSource);
+
+      if(results.length > 0 && !placed){
+        const pose =
+          results[0].getPose(referenceSpace);
+
+        if(pose){
+          reticle.visible = true;
+          reticle.matrix.fromArray(
+            pose.transform.matrix
+          );
+        }
+      }else if(!placed){
+        reticle.visible = false;
+      }
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+
+function onResize(){
+  camera.aspect =
+    innerWidth / innerHeight;
+
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(
+    innerWidth,
+    innerHeight
+  );
+}
+</script>
+</body>
+</html>
