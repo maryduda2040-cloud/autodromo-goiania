@@ -10,7 +10,8 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>Autódromo de Goiânia — Jogo</title>
+  <title>Autódromo de Goiânia</title>
+
 
   <style>
 
@@ -18,23 +19,27 @@
       box-sizing: border-box;
     }
 
+
     html,
     body {
 
       margin: 0;
+
       width: 100%;
       height: 100%;
 
       overflow: hidden;
 
-      font-family: Arial, sans-serif;
-
       background: #111;
+
+      font-family: Arial, sans-serif;
 
     }
 
 
-    /* CÂMERA */
+    /* =========================
+       CÂMERA
+    ========================= */
 
     #camera {
 
@@ -52,23 +57,18 @@
     }
 
 
-    /* ÁREA DA PISTA */
+    /* =========================
+       CANVAS DA PISTA
+    ========================= */
 
-    #pistaContainer {
+    #gameCanvas {
 
       position: fixed;
 
-      left: 50%;
-
-      bottom: 0;
+      inset: 0;
 
       width: 100%;
-
       height: 100%;
-
-      transform: translateX(-50%);
-
-      transform-origin: center bottom;
 
       z-index: 5;
 
@@ -77,31 +77,22 @@
     }
 
 
-    /* PISTA */
+    /* =========================
+       VÍDEO INVISÍVEL
+    ========================= */
 
-    #pista {
+    #trackVideo {
 
-      position: absolute;
-
-      left: 50%;
-
-      bottom: 0;
-
-      width: 100%;
-
-      height: auto;
-
-      transform:
-        translateX(-50%);
-
-      transform-origin: center bottom;
+      display: none;
 
     }
 
 
-    /* TELA INICIAL */
+    /* =========================
+       TELA INICIAL
+    ========================= */
 
-    #start {
+    #startScreen {
 
       position: fixed;
 
@@ -120,19 +111,98 @@
     }
 
 
-    /* BOTÃO */
+    /* =========================
+       BOTÃO
+    ========================= */
 
-    button {
+    #startButton {
 
       border: none;
 
-      padding: 18px 30px;
+      padding: 18px 32px;
 
       font-size: 18px;
 
       font-weight: bold;
 
       cursor: pointer;
+
+      background: white;
+
+      color: #111;
+
+    }
+
+
+    /* =========================
+       MENSAGEM
+    ========================= */
+
+    #message {
+
+      position: fixed;
+
+      top: 20px;
+
+      left: 50%;
+
+      transform: translateX(-50%);
+
+      z-index: 20;
+
+      color: white;
+
+      background: rgba(0, 0, 0, 0.65);
+
+      padding: 10px 15px;
+
+      border-radius: 8px;
+
+      font-size: 16px;
+
+      text-align: center;
+
+      display: none;
+
+    }
+
+
+    /* =========================
+       TELA FINAL
+    ========================= */
+
+    #finishScreen {
+
+      position: fixed;
+
+      inset: 0;
+
+      display: none;
+
+      align-items: center;
+
+      justify-content: center;
+
+      flex-direction: column;
+
+      background: #111;
+
+      color: white;
+
+      z-index: 30;
+
+      text-align: center;
+
+      padding: 30px;
+
+    }
+
+
+    #finishScreen h1 {
+
+      font-size: 32px;
+
+      margin: 0;
 
     }
 
@@ -144,9 +214,44 @@
 <body>
 
 
-  <!-- TELA INICIAL -->
+  <!-- =========================
+       CÂMERA
+  ========================= -->
 
-  <div id="start">
+  <video
+    id="camera"
+    autoplay
+    playsinline
+    muted
+  ></video>
+
+
+  <!-- =========================
+       VÍDEO DA PISTA
+  ========================= -->
+
+  <video
+    id="trackVideo"
+    src="pista.mp4"
+    muted
+    playsinline
+  ></video>
+
+
+  <!-- =========================
+       CANVAS
+  ========================= -->
+
+  <canvas
+    id="gameCanvas"
+  ></canvas>
+
+
+  <!-- =========================
+       TELA INICIAL
+  ========================= -->
+
+  <div id="startScreen">
 
     <button id="startButton">
       INICIAR CORRIDA
@@ -155,24 +260,22 @@
   </div>
 
 
-  <!-- CÂMERA -->
+  <!-- =========================
+       MENSAGEM
+  ========================= -->
 
-  <video
-    id="camera"
-    autoplay
-    playsinline
-  ></video>
+  <div id="message"></div>
 
 
-  <!-- PISTA -->
+  <!-- =========================
+       TELA FINAL
+  ========================= -->
 
-  <div id="pistaContainer">
+  <div id="finishScreen">
 
-    <img
-      id="pista"
-      src="pista.png"
-      alt=""
-    >
+    <h1>
+      VOCÊ FINALIZOU SUA CORRIDA
+    </h1>
 
   </div>
 
@@ -180,11 +283,37 @@
   <script>
 
 
-    /* ELEMENTOS */
+    /* =========================
+       ELEMENTOS
+    ========================= */
 
-    const start =
+    const camera =
       document.getElementById(
-        "start"
+        "camera"
+      );
+
+
+    const trackVideo =
+      document.getElementById(
+        "trackVideo"
+      );
+
+
+    const canvas =
+      document.getElementById(
+        "gameCanvas"
+      );
+
+
+    const ctx =
+      canvas.getContext(
+        "2d"
+      );
+
+
+    const startScreen =
+      document.getElementById(
+        "startScreen"
       );
 
 
@@ -194,200 +323,155 @@
       );
 
 
-    const camera =
+    const message =
       document.getElementById(
-        "camera"
+        "message"
       );
 
 
-    const pistaContainer =
+    const finishScreen =
       document.getElementById(
-        "pistaContainer"
+        "finishScreen"
       );
 
 
-    /*
-
-      GAMMA CENTRAL
-
-    */
-
-    const gammaCentro = 4;
-
+    /* =========================
+       CONFIGURAÇÃO
+    ========================= */
 
     /*
+      COR DO FUNDO DO VÍDEO
 
-      MOVIMENTO LATERAL
-
+      O fundo do seu vídeo é
+      aproximadamente RGB 52,52,52.
     */
 
-    let posicaoX = 0;
+    const cinzaR = 52;
+    const cinzaG = 52;
+    const cinzaB = 52;
 
 
     /*
+      TOLERÂNCIA
 
-      ESCALA DA PISTA
-
-    */
-
-    let escala = 1;
-
-
-    /*
-
-      CONTROLE DA CORRIDA
+      Quanto maior esse número,
+      mais tons de cinza serão
+      considerados transparentes.
 
     */
 
-    let corridaIniciada = false;
-
-    let ultimoTempo = 0;
+    const tolerancia = 25;
 
 
-    /*
-      VELOCIDADE DE CRESCIMENTO
+    /* =========================
+       AJUSTA CANVAS
+    ========================= */
 
-      Vamos começar devagar.
+    function ajustarCanvas() {
 
-    */
+      canvas.width =
+        window.innerWidth;
 
-    const velocidade =
-      0.08;
+      canvas.height =
+        window.innerHeight;
 
-
-    /*
-      BOTÃO INICIAR
-    */
-
-    startButton.addEventListener(
-      "click",
-      async () => {
+    }
 
 
-        try {
+    ajustarCanvas();
 
 
-          /*
-            ABRE CÂMERA
-          */
-
-          const stream =
-            await navigator
-              .mediaDevices
-              .getUserMedia({
-
-                video: {
-
-                  facingMode:
-                    "environment"
-
-                },
-
-                audio: false
-
-              });
-
-
-          camera.srcObject =
-            stream;
-
-
-          /*
-            ESCONDE BOTÃO
-          */
-
-          start.style.display =
-            "none";
-
-
-          /*
-            ATIVA SENSOR
-          */
-
-          ativarSensor();
-
-
-        }
-
-
-        catch (error) {
-
-
-          console.log(
-            "Erro da câmera:",
-            error
-          );
-
-        }
-
-      }
+    window.addEventListener(
+      "resize",
+      ajustarCanvas
     );
 
 
-    /*
-      SENSOR
-    */
+    /* =========================
+       BOTÃO INICIAR
+    ========================= */
 
-    async function ativarSensor() {
+    startButton.addEventListener(
+      "click",
+      iniciarJogo
+    );
+
+
+    /* =========================
+       INICIAR JOGO
+    ========================= */
+
+    async function iniciarJogo() {
+
+
+      startButton.disabled =
+        true;
+
+
+      startButton.textContent =
+        "ABRINDO CÂMERA...";
 
 
       try {
 
 
-        /*
-          PEDIDO DE PERMISSÃO
-          QUANDO NECESSÁRIO
-        */
+        /* =====================
+           ABRIR CÂMERA
+        ===================== */
 
-        if (
+        const stream =
+          await navigator
+            .mediaDevices
+            .getUserMedia({
 
-          typeof DeviceOrientationEvent !==
-          "undefined"
+              video: {
 
-          &&
+                facingMode:
+                  "environment"
 
-          typeof DeviceOrientationEvent
-            .requestPermission ===
-          "function"
+              },
 
-        ) {
+              audio: false
 
-
-          const permission =
-            await DeviceOrientationEvent
-              .requestPermission();
+            });
 
 
-          if (
-            permission !==
-            "granted"
-          ) {
-
-            return;
-
-          }
-
-        }
+        camera.srcObject =
+          stream;
 
 
         /*
-          ESCUTA SENSOR
+          Espera a câmera
+          começar a funcionar.
         */
 
-        window.addEventListener(
-
-          "deviceorientation",
-
-          controlarPista
-
-        );
+        await camera.play();
 
 
-        /*
-          COMEÇA CORRIDA
-        */
+        /* =====================
+           ESCONDE TELA INICIAL
+        ===================== */
 
-        iniciarCorrida();
+        startScreen.style.display =
+          "none";
+
+
+        /* =====================
+           COMEÇA VÍDEO
+        ===================== */
+
+        trackVideo.currentTime =
+          0;
+
+
+        await trackVideo.play();
+
+
+        /* =====================
+           COMEÇA PROCESSAMENTO
+        ===================== */
+
+        desenharVideo();
 
 
       }
@@ -396,205 +480,309 @@
       catch (error) {
 
 
-        console.log(
-          "Erro do sensor:",
+        console.error(
           error
         );
 
+
+        startButton.disabled =
+          false;
+
+
+        startButton.textContent =
+          "INICIAR CORRIDA";
+
+
+        message.style.display =
+          "block";
+
+
+        message.textContent =
+          "Não foi possível abrir a câmera.";
+
       }
 
     }
 
 
-    /*
-      CONTROLE LATERAL
-    */
+    /* =========================
+       PROCESSA O VÍDEO
+    ========================= */
 
-    function controlarPista(
-      event
-    ) {
-
-
-      const gamma =
-        event.gamma || 0;
+    function desenharVideo() {
 
 
       /*
-        DIFERENÇA DO CENTRO
+        Se o vídeo ainda não
+        estiver pronto, espera.
       */
 
-      const diferenca =
-        gamma - gammaCentro;
+      if (
+        trackVideo.readyState <
+        2
+      ) {
+
+        requestAnimationFrame(
+          desenharVideo
+        );
+
+        return;
+
+      }
 
 
       /*
-        MOVIMENTO LATERAL
-
-        Mantemos exatamente
-        a lógica que funcionou.
+        Tamanho original
+        do vídeo.
 
       */
 
-      let alvo =
-        -diferenca * 4;
+      const videoWidth =
+        trackVideo.videoWidth;
+
+
+      const videoHeight =
+        trackVideo.videoHeight;
 
 
       /*
-        LIMITA A MOVIMENTAÇÃO
+        Calcula a escala para
+        preencher a tela mantendo
+        a proporção.
+
       */
 
-      alvo =
+      const escala =
         Math.max(
-          -180,
-          Math.min(
-            180,
-            alvo
-          )
+
+          canvas.width /
+            videoWidth,
+
+          canvas.height /
+            videoHeight
+
         );
 
 
+      const largura =
+        videoWidth *
+        escala;
+
+
+      const altura =
+        videoHeight *
+        escala;
+
+
       /*
-        MOVIMENTO SUAVE
+        Centraliza o vídeo.
+
       */
 
-      posicaoX +=
-        (alvo - posicaoX)
-        * 0.15;
+      const x =
+        (canvas.width -
+          largura) /
+        2;
+
+
+      const y =
+        (canvas.height -
+          altura) /
+        2;
 
 
       /*
-        APLICA POSIÇÃO LATERAL
+        Desenha o quadro
+        do vídeo.
+
       */
 
-      pista.style.transform =
+      ctx.drawImage(
 
-        `translateX(
-          calc(-50% + ${posicaoX}px)
-        )`;
+        trackVideo,
+
+        x,
+        y,
+
+        largura,
+        altura
+
+      );
+
+
+      /*
+        Pega os pixels.
+
+      */
+
+      const imagem =
+        ctx.getImageData(
+
+          0,
+          0,
+
+          canvas.width,
+          canvas.height
+
+        );
+
+
+      const pixels =
+        imagem.data;
+
+
+      /*
+        Percorre todos
+        os pixels.
+
+      */
+
+      for (
+        let i = 0;
+        i < pixels.length;
+        i += 4
+      ) {
+
+
+        const r =
+          pixels[i];
+
+
+        const g =
+          pixels[i + 1];
+
+
+        const b =
+          pixels[i + 2];
+
+
+        /*
+          Calcula diferença
+          em relação ao cinza.
+
+        */
+
+        const diferenca =
+
+          Math.abs(
+            r - cinzaR
+          )
+
+          +
+
+          Math.abs(
+            g - cinzaG
+          )
+
+          +
+
+          Math.abs(
+            b - cinzaB
+          );
+
+
+        /*
+          Se estiver próximo
+          do cinza do fundo,
+          torna transparente.
+
+        */
+
+        if (
+          diferenca <
+          tolerancia * 3
+        ) {
+
+
+          pixels[i + 3] =
+            0;
+
+        }
+
+      }
+
+
+      /*
+        Coloca os pixels
+        processados de volta.
+
+      */
+
+      ctx.putImageData(
+        imagem,
+        0,
+        0
+      );
+
+
+      /*
+        Continua processando
+        o próximo quadro.
+
+      */
+
+      if (
+        !trackVideo.paused &&
+        !trackVideo.ended
+      ) {
+
+        requestAnimationFrame(
+          desenharVideo
+        );
+
+      }
 
     }
 
 
-    /*
-      INICIA CORRIDA
-    */
+    /* =========================
+       FINAL DA CORRIDA
+    ========================= */
 
-    function iniciarCorrida() {
-
-
-      if (
-        corridaIniciada
-      ) {
-
-        return;
-
-      }
+    trackVideo.addEventListener(
+      "ended",
+      corridaTerminou
+    );
 
 
-      corridaIniciada =
-        true;
-
-
-      ultimoTempo =
-        performance.now();
-
-
-      requestAnimationFrame(
-        animarCorrida
-      );
-
-    }
-
-
-    /*
-      ANIMAÇÃO
-    */
-
-    function animarCorrida(
-      tempo
-    ) {
-
-
-      if (
-        !corridaIniciada
-      ) {
-
-        return;
-
-      }
+    function corridaTerminou() {
 
 
       /*
-        TEMPO PASSADO
-      */
-
-      const delta =
-        (tempo -
-          ultimoTempo)
-        / 1000;
-
-
-      ultimoTempo =
-        tempo;
-
-
-      /*
-        AUMENTA A PISTA
-
-        Isso cria a sensação
-        de aproximação.
+        Mostra tela final.
 
       */
 
-      escala +=
-        velocidade * delta;
+      finishScreen.style.display =
+        "flex";
 
 
       /*
-        LIMITA O CRESCIMENTO
-
-        Para o teste,
-        vamos até 1.8x.
+        Para câmera.
 
       */
 
       if (
-        escala > 1.8
+        camera.srcObject
       ) {
 
-        escala = 1;
+
+        const tracks =
+          camera.srcObject
+            .getTracks();
+
+
+        tracks.forEach(
+          track => track.stop()
+        );
 
       }
-
-
-      /*
-        APLICA ESCALA
-
-        O ponto de origem
-        fica na parte inferior.
-
-      */
-
-      pista.style.transform =
-
-        `translateX(
-          calc(-50% + ${posicaoX}px)
-        )
-        scale(${escala})`;
-
-
-      /*
-        CONTINUA
-      */
-
-      requestAnimationFrame(
-        animarCorrida
-      );
 
     }
 
 
   </script>
+
 
 </body>
 
