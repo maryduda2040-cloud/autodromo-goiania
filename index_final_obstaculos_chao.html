@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Autódromo de Goiânia — AR</title>
+<style>
+  html,body{
+    margin:0;width:100%;height:100%;overflow:hidden;
+    background:#111;font-family:Arial,sans-serif;
+  }
+  canvas{display:block}
+  #ui{position:fixed;inset:0;z-index:5;pointer-events:none}
+  #box{
+    position:absolute;left:50%;bottom:28px;transform:translateX(-50%);
+    width:min(88vw,420px);padding:16px;border-radius:16px;
+    background:rgba(0,0,0,.72);color:#fff;text-align:center;
+    pointer-events:auto;backdrop-filter:blur(6px);
+  }
+  #status{margin:0 0 12px;font-size:16px;line-height:1.35}
+  button{
+    width:100%;padding:15px;border:0;border-radius:12px;
+    font-size:17px;font-weight:800;
+  }
+  #place{display:none}
+  #finish{
+    display:none;position:fixed;inset:0;z-index:20;background:#071432;
+    color:#fff;align-items:center;justify-content:center;
+    text-align:center;padding:30px;
+  }
+  #finish h1{font-size:clamp(30px,8vw,54px);line-height:1.05;margin:0}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div id="box">
+    <p id="status">Pronto para começar.</p>
+    <button id="start">INICIAR CORRIDA</button>
+    <button id="place">COLOCAR PISTA AQUI</button>
+  </div>
+</div>
+
+<div id="finish">
+  <h1>VOCÊ FINALIZOU<br>SUA CORRIDA</h1>
+</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+const statusEl = document.querySelector("#status");
+const startButton = document.querySelector("#start");
+const placeButton = document.querySelector("#place");
+const finish = document.querySelector("#finish");
+const box = document.querySelector("#box");
+
+let scene, camera, renderer, controller, reticle;
+let hitSource = null;
+let viewerSpace = null;
+let sourceRequested = false;
+
+let placed = false;
+let roadGroup = null;
+let roadDirection = new THREE.Vector3();
+let startPosition = new THREE.Vector3();
+let raceStartedAt = 0;
+let finished = false;
+let lastSegmentAdded = -1;
+
+// Profundidade é opcional: se o aparelho não oferecer,
+// a corrida continua funcionando normalmente.
+let depthSupported = false;
+let obstacleBlocked = false;
+let lastDepthCheck = 0;
+let roadBlockDistance = Infinity;
+window.roadBlockDistance = Infinity;
+let clearChecks = 0;
+let blockedChecks = 0;
+
+const CLEAR_CHECKS_TO_RELEASE = 2;
+const BLOCKED_CHECKS_TO_STOP = 2;
+
+// Se a pessoa estiver olhando muito de lado em relação à pista,
+// não alteramos o estado do obstáculo. A checagem volta quando
+// ela olhar novamente para a direção da pista.
+const MAX_LOOK_ANGLE_DEG = 75;
+
+// --- Configurações da pista ---
+const ROAD_WIDTH = 1.10;
+const SEGMENT_LENGTH = 1.0;
+const INITIAL_SEGMENTS = 5;
+const MAX_SEGMENTS = 60;
+
+// A pista fica praticamente sobre o chão.
+// 0.0005 m = 0,5 mm acima da superfície.
+const ROAD_Y_OFFSET = 0.0005;
+
+const CURB_WIDTH = 0.12;
+const SEGMENT_GAP = 0.002;
+
+// Se um obstáculo for detectado a menos desta distância,
+// paramos de criar novos segmentos.
+const OBSTACLE_STOP_DISTANCE = 1.5;
+
+// Distância máxima na qual procuramos um obstáculo.
+const OBSTACLE_MAX_DISTANCE = 4.0;
+
+init();
+
+function init(){
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(
+    70, innerWidth / innerHeight, 0.01, 100
+  );
+
+  renderer = new THREE.WebGLRenderer({
+    antialias:true,
+    alpha:true,
+    powerPreference:"high-performance"
+  });
+
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setClearColor(0,0);
+  renderer.xr.enabled = true;
+
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(
+    new THREE.HemisphereLight(0xffffff, 0x777777, 1.5)
+  );
+
+  reticle = new THREE.Mesh(
+    new THREE.RingGeometry(.075,.105,32).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({
+      color:0xffffff,
+      transparent:true,
+      opacity:.9
+    })
+  );
+
+  reticle.matrixAutoUpdate = false;
+  reticle.visible = false;
+  scene.add(reticle);
+
+  controller = renderer.xr.getController(0);
+  controller.addEventListener("select", placeTrack);
+  scene.add(controller);
+
+  startButton.addEventListener("click", startAR);
+  placeButton.addEventListener("click", placeTrack);
+  window.addEventListener("resize", onResize);
+
+  renderer.setAnimationLoop(render);
+}
+
+async function startAR(){
+  startButton.disabled = true;
+  statusEl.textContent = "Abrindo a câmera AR...";
+
+  try{
+    if(!navigator.xr){
+      throw new Error("WebXR indisponível");
+    }
+
+    const supported =
+      await navigator.xr.isSessionSupported("immersive-ar");
+
+    if(!supported){
+      throw new Error("AR não suportado");
+    }
+
+    /*
+      depth-sensing é OPCIONAL.
+      Assim, se o aparelho oferecer profundidade,
+      usamos para identificar obstáculos.
+      Se não oferecer, o jogo continua funcionando.
+    */
+    const session = await navigator.xr.requestSession("immersive-ar",{
+      requiredFeatures:["local","hit-test"],
+      optionalFeatures:["dom-overlay","depth-sensing"],
+      domOverlay:{
+        root:document.querySelector("#ui")
+      },
+
+      depthSensing:{
+        usagePreference:["cpu-optimized","gpu-optimized"],
+        dataFormatPreference:["luminance-alpha","float32"]
+      }
+    });
+
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(session);
+
+    depthSupported =
+      session.enabledFeatures
+        ? session.enabledFeatures.includes("depth-sensing")
+        : !!session.depthUsage;
+
+    session.addEventListener("end",()=>{
+      hitSource = null;
+      viewerSpace = null;
+      sourceRequested = false;
+      depthSupported = false;
+    });
+
+    startButton.style.display = "none";
+    placeButton.style.display = "block";
+
+    statusEl.textContent =
+      "Aponte a câmera para o chão...";
+
+  }catch(error){
+    console.error(error);
+
+    statusEl.textContent =
+      "Não foi possível iniciar o AR. " +
+      "Verifique a câmera e teste pelo Chrome no Android.";
+
+    startButton.disabled = false;
+  }
+}
+
+async function requestHitSource(session){
+  if(sourceRequested) return;
+
+  sourceRequested = true;
+
+  try{
+    viewerSpace =
+      await session.requestReferenceSpace("viewer");
+
+    hitSource =
+      await session.requestHitTestSource({
+        space:viewerSpace
+      });
+
+  }catch(error){
+    console.error("Hit test:",error);
+    sourceRequested = false;
+  }
+}
+
+function placeTrack(){
+  if(!reticle.visible || placed) return;
+
+  placed = true;
+  raceStartedAt = performance.now();
+
+  startPosition.setFromMatrixPosition(reticle.matrix);
+
+  // Praticamente encostada no chão.
+  startPosition.y += ROAD_Y_OFFSET;
+
+  /*
+    A pista segue a direção horizontal para a qual
+    o celular está apontado no momento da colocação.
+  */
+  camera.getWorldDirection(roadDirection);
+  roadDirection.y = 0;
+
+  if(roadDirection.lengthSq() < 0.001){
+    roadDirection.set(0,0,-1);
+  }
+
+  roadDirection.normalize();
+
+  roadGroup = new THREE.Group();
+  roadGroup.position.copy(startPosition);
+
+  roadGroup.rotation.y =
+    Math.atan2(
+      roadDirection.x,
+      roadDirection.z
+    );
+
+  scene.add(roadGroup);
+
+  for(let i=0;i<INITIAL_SEGMENTS;i++){
+    addRoadSegment(i);
+  }
+
+  lastSegmentAdded = INITIAL_SEGMENTS - 1;
+
+  reticle.visible = false;
+  placeButton.style.display = "none";
+
+  statusEl.textContent =
+    "Corrida em andamento • 00:00";
+}
+
+function addRoadSegment(index){
+  if(!roadGroup || index >= MAX_SEGMENTS) return;
+
+  const z =
+    index * (SEGMENT_LENGTH + SEGMENT_GAP)
+    + SEGMENT_LENGTH / 2;
+
+  const segment = new THREE.Group();
+  segment.position.z = z;
+
+  // -------------------------
+  // ASFALTO
+  // -------------------------
+  const asphalt = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      ROAD_WIDTH,
+      0.001,
+      SEGMENT_LENGTH
+    ),
+    new THREE.MeshStandardMaterial({
+      color:0x090a0c,
+      roughness:.95,
+      metalness:0
+    })
+  );
+
+  asphalt.position.y = 0.00025;
+  segment.add(asphalt);
+
+  // -------------------------
+  // BORDAS AZUL / BRANCO
+  // -------------------------
+  const curbCount = 2;
+  const curbLength =
+    SEGMENT_LENGTH / curbCount;
+
+  for(let side=-1;side<=1;side+=2){
+
+    for(let c=0;c<curbCount;c++){
+
+      const color =
+        (index * curbCount + c) % 2 === 0
+        ? 0x0f489d
+        : 0xf8faff;
+
+      const curb = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          CURB_WIDTH,
+          0.002,
+          curbLength - 0.008
+        ),
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness:.82,
+          metalness:0
+        })
+      );
+
+      curb.position.x =
+        side *
+        (ROAD_WIDTH / 2 +
+         CURB_WIDTH / 2 -
+         0.002);
+
+      curb.position.y = 0.00075;
+
+      curb.position.z =
+        -SEGMENT_LENGTH/2 +
+        c * curbLength +
+        curbLength/2;
+
+      segment.add(curb);
+    }
+  }
+
+  // -------------------------
+  // FAIXA CENTRAL
+  // -------------------------
+  const dash = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      0.055,
+      0.002,
+      0.34
+    ),
+    new THREE.MeshStandardMaterial({
+      color:0xf8faff,
+      roughness:.8
+    })
+  );
+
+  dash.position.y = 0.00075;
+  dash.position.z = 0;
+
+  segment.add(dash);
+
+  roadGroup.add(segment);
+}
+
+function updateRoad(cameraPosition){
+
+  if(!roadGroup || finished) return;
+
+  const relative =
+    cameraPosition.clone()
+      .sub(roadGroup.position);
+
+  relative.applyAxisAngle(
+    new THREE.Vector3(0,1,0),
+    -roadGroup.rotation.y
+  );
+
+  const traveled = relative.z;
+
+  /*
+    Normalmente deixamos cerca de 8 segmentos à frente.
+    Se houver um obstáculo REAL detectado na direção da
+    pista, roadBlockDistance limita onde novos segmentos
+    podem aparecer.
+  */
+  const normalLast =
+    Math.min(
+      MAX_SEGMENTS - 1,
+      Math.max(
+        lastSegmentAdded,
+        Math.floor(
+          traveled /
+          (SEGMENT_LENGTH + SEGMENT_GAP)
+        ) + 8
+      )
+    );
+
+  const allowedDistance =
+    Number.isFinite(window.roadBlockDistance)
+      ? window.roadBlockDistance
+      : Infinity;
+
+  const blockedLast =
+    Number.isFinite(allowedDistance)
+      ? Math.floor(
+          allowedDistance /
+          (SEGMENT_LENGTH + SEGMENT_GAP)
+        )
+      : MAX_SEGMENTS - 1;
+
+  const desiredLast =
+    Math.min(normalLast, blockedLast);
+
+  while(lastSegmentAdded < desiredLast){
+    lastSegmentAdded++;
+    addRoadSegment(lastSegmentAdded);
+  }
+
+  /*
+    Esconde/mostra segmentos já criados.
+    Isso é importante: se a pessoa olhar para longe do
+    obstáculo, a pista volta a ficar disponível sem
+    precisar recriar tudo.
+  */
+  for(const child of roadGroup.children){
+    child.visible =
+      !Number.isFinite(allowedDistance) ||
+      child.position.z <= allowedDistance;
+  }
+
+  if(Number.isFinite(allowedDistance)){
+    obstacleBlocked = true;
+  }else{
+    obstacleBlocked = false;
+  }
+}
+
+/*
+=========================================================
+ DETECÇÃO DE OBSTÁCULOS COM DEPTH SENSING
+=========================================================
+
+A profundidade disponível pelo WebXR informa a distância
+entre o celular e a geometria real do ambiente.
+
+Não usamos apenas "qualquer coisa mais perto":
+o algoritmo procura uma superfície vertical/obstáculo
+na região central da visão, comparando vários pontos.
+
+Se não houver depth-sensing no aparelho, essa função
+simplesmente não interfere no jogo.
+*/
+
+function checkForObstacle(frame, now){
+
+  if(
+    !depthSupported ||
+    !roadGroup ||
+    finished ||
+    now - lastDepthCheck < 160
+  ){
+    return;
+  }
+
+  lastDepthCheck = now;
+
+  try{
+
+    const referenceSpace =
+      renderer.xr.getReferenceSpace();
+
+    const pose =
+      frame.getViewerPose(referenceSpace);
+
+    if(!pose || !pose.views.length){
+      return;
+    }
+
+    /*
+      Primeiro verificamos se o usuário está olhando
+      aproximadamente para a direção da pista.
+
+      Isso evita que uma parede lateral ou o limite do
+      mapa de profundidade seja interpretado como algo
+      bloqueando a pista.
+    */
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+    cameraDirection.y = 0;
+    cameraDirection.normalize();
+
+    const flatRoadDirection =
+      roadDirection.clone();
+
+    flatRoadDirection.y = 0;
+    flatRoadDirection.normalize();
+
+    const angle =
+      THREE.MathUtils.radToDeg(
+        Math.acos(
+          THREE.MathUtils.clamp(
+            cameraDirection.dot(flatRoadDirection),
+            -1,1
+          )
+        )
+      );
+
+    if(angle > MAX_LOOK_ANGLE_DEG){
+      // Não limpa nem bloqueia enquanto olha para o lado.
+      return;
+    }
+
+    const view = pose.views[0];
+
+    const depthInfo =
+      frame.getDepthInformation(view);
+
+    if(
+      !depthInfo ||
+      typeof depthInfo.getDepthInMeters !== "function"
+    ){
+      return;
+    }
+
+    /*
+      IMPORTANTE:
+      agora projetamos os pontos usando a matriz da
+      PRÓPRIA XRView, e não camera.project().
+
+      Isso torna a leitura do depth map coerente com
+      a câmera real do AR.
+    */
+    const viewMatrix =
+      new THREE.Matrix4().fromArray(
+        view.transform.inverse.matrix
+      );
+
+    const projectionMatrix =
+      new THREE.Matrix4().fromArray(
+        view.projectionMatrix
+      );
+
+    const worldPoint = new THREE.Vector3();
+    const viewPoint = new THREE.Vector3();
+    const clipPoint = new THREE.Vector4();
+
+    /*
+      Vários pontos ao longo da pista.
+      Não olhamos para o "fim da tela"; olhamos somente
+      para lugares onde a pista realmente existe.
+    */
+    const candidateDistances = [
+      1.4,
+      1.9,
+      2.5,
+      3.1,
+      3.7
+    ];
+
+    const candidateXs = [
+      -0.40,
+       0.00,
+       0.40
+    ];
+
+    let closestObstacle = Infinity;
+    let obstacleSamples = 0;
+
+    for(const z of candidateDistances){
+
+      let blockedAtThisDistance = 0;
+
+      for(const x of candidateXs){
+
+        /*
+          Ponto ligeiramente acima da pista.
+          Assim evitamos considerar o próprio chão
+          como obstáculo.
+        */
+        const localPoint =
+          new THREE.Vector3(x,0.10,z);
+
+        worldPoint.copy(localPoint);
+        roadGroup.localToWorld(worldPoint);
+
+        // Mundo -> câmera da XRView.
+        viewPoint.copy(worldPoint);
+        viewPoint.applyMatrix4(viewMatrix);
+
+        /*
+          Se o ponto estiver atrás da câmera, ignore.
+        */
+        if(viewPoint.z >= 0){
+          continue;
+        }
+
+        // Câmera -> projeção.
+        clipPoint.set(
+          viewPoint.x,
+          viewPoint.y,
+          viewPoint.z,
+          1
+        );
+
+        clipPoint.applyMatrix4(projectionMatrix);
+
+        if(Math.abs(clipPoint.w) < 0.0001){
+          continue;
+        }
+
+        const ndcX =
+          clipPoint.x / clipPoint.w;
+
+        const ndcY =
+          clipPoint.y / clipPoint.w;
+
+        /*
+          Fora da imagem = não temos informação útil.
+        */
+        if(
+          ndcX < -1 || ndcX > 1 ||
+          ndcY < -1 || ndcY > 1
+        ){
+          continue;
+        }
+
+        const sx =
+          THREE.MathUtils.clamp(
+            (ndcX + 1) / 2,
+            0.001,0.999
+          );
+
+        const sy =
+          THREE.MathUtils.clamp(
+            (1 - ndcY) / 2,
+            0.001,0.999
+          );
+
+        const measured =
+          depthInfo.getDepthInMeters(
+            sx,
+            sy
+          );
+
+        if(
+          !Number.isFinite(measured) ||
+          measured <= 0.15 ||
+          measured > OBSTACLE_MAX_DISTANCE
+        ){
+          continue;
+        }
+
+        /*
+          A profundidade esperada é a distância ao ponto
+          da pista na direção da câmera.
+        */
+        const expectedDepth =
+          -viewPoint.z;
+
+        /*
+          Só consideramos obstáculo se a superfície real
+          estiver significativamente antes do ponto onde
+          a pista deveria estar.
+        */
+        const difference =
+          expectedDepth - measured;
+
+        if(difference > 0.45){
+          blockedAtThisDistance++;
+        }
+      }
+
+      /*
+        Exigimos 2 dos 3 pontos da largura.
+      */
+      if(blockedAtThisDistance >= 2){
+
+        closestObstacle =
+          Math.min(
+            closestObstacle,
+            z
+          );
+
+        obstacleSamples++;
+      }
+    }
+
+    if(obstacleSamples > 0){
+
+      blockedChecks++;
+      clearChecks = 0;
+
+      /*
+        Evita parar por causa de um único frame
+        ruim do sensor.
+      */
+      if(blockedChecks >= BLOCKED_CHECKS_TO_STOP){
+
+        roadBlockDistance =
+          Math.max(
+            0.8,
+            closestObstacle - 0.35
+          );
+
+        window.roadBlockDistance =
+          roadBlockDistance;
+
+        obstacleBlocked = true;
+      }
+
+    }else{
+
+      clearChecks++;
+      blockedChecks = 0;
+
+      /*
+        Depois de alguns frames realmente livres,
+        liberamos a pista novamente.
+      */
+      if(clearChecks >= CLEAR_CHECKS_TO_RELEASE){
+
+        roadBlockDistance = Infinity;
+        window.roadBlockDistance = Infinity;
+
+        obstacleBlocked = false;
+      }
+    }
+
+  }catch(error){
+
+    console.debug(
+      "Depth sensing indisponível:",
+      error
+    );
+
+    /*
+      Um erro momentâneo não trava a pista.
+      Não apagamos o bloqueio imediatamente; apenas
+      deixamos a próxima leitura decidir.
+    */
+  }
+}
+
+function updateTimer(now){
+
+  if(!placed || finished)
+    return;
+
+  const elapsed =
+    Math.floor(
+      (now-raceStartedAt)/1000
+    );
+
+  const seconds =
+    Math.min(elapsed,60)
+      .toString()
+      .padStart(2,"0");
+
+  statusEl.textContent =
+    obstacleBlocked
+      ? "Obstáculo à frente • 00:" + seconds
+      : "Corrida em andamento • 00:" + seconds;
+
+  if(elapsed >= 60){
+    finishRace();
+  }
+}
+
+function finishRace(){
+
+  if(finished)
+    return;
+
+  finished = true;
+  box.style.display = "none";
+  finish.style.display = "flex";
+}
+
+function render(time,frame){
+
+  if(frame){
+
+    const session =
+      renderer.xr.getSession();
+
+    if(!sourceRequested){
+      requestHitSource(session);
+    }
+
+    if(hitSource){
+
+      const referenceSpace =
+        renderer.xr.getReferenceSpace();
+
+      const results =
+        frame.getHitTestResults(hitSource);
+
+      if(results.length && !placed){
+
+        const pose =
+          results[0].getPose(referenceSpace);
+
+        if(pose){
+
+          reticle.visible = true;
+
+          reticle.matrix.fromArray(
+            pose.transform.matrix
+          );
+        }
+
+      }else if(!placed){
+
+        reticle.visible = false;
+      }
+
+      if(placed && !finished){
+
+        const cameraWorldPosition =
+          new THREE.Vector3();
+
+        camera.getWorldPosition(
+          cameraWorldPosition
+        );
+
+        checkForObstacle(
+          frame,
+          performance.now()
+        );
+
+        updateRoad(cameraWorldPosition);
+
+        updateTimer(
+          performance.now()
+        );
+      }
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+
+function onResize(){
+
+  camera.aspect =
+    innerWidth/innerHeight;
+
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(
+    innerWidth,
+    innerHeight
+  );
+}
+</script>
+</body>
+</html>
